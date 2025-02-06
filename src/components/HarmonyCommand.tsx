@@ -350,24 +350,19 @@ export default function HarmonyCommand() {
             icon={Icon.Terminal}
             actions={
               <ActionPanel>
-                <ActionPanel.Section>
-                  <Action title="Execute Command" onAction={() => executeCommand(command)} icon={Icon.Terminal} />
-                </ActionPanel.Section>
-                <ActionPanel.Section>
-                  <Action
-                    title="Create Keyboard Shortcut"
-                    icon={Icon.Keyboard}
-                    onAction={() => {
-                      const shortcutUrl = `raycast://extensions/chadrwalters/harmony-raycast-extension/shortcuts?hubId=${encodeURIComponent(state.selectedHub?.id || "")}&deviceId=${encodeURIComponent(command.deviceId)}&commandId=${encodeURIComponent(command.id)}&label=${encodeURIComponent(`${state.selectedDevice?.label} - ${command.label}`)}`;
-                      showToast({
-                        style: Toast.Style.Success,
-                        title: "Opening Shortcuts",
-                        message: "Select 'Add Shortcut' to create a new keyboard shortcut",
-                      });
-                      open(shortcutUrl);
-                    }}
-                  />
-                </ActionPanel.Section>
+                <Action title="Execute Command" icon={Icon.Play} onAction={() => executeCommand(command)} />
+                <Action
+                  title="Copy Command"
+                  icon={Icon.CopyClipboard}
+                  onAction={async () => {
+                    navigator.clipboard.writeText(command.label);
+                    await showToast({
+                      style: Toast.Style.Success,
+                      title: "Command Copied",
+                      message: command.label,
+                    });
+                  }}
+                />
               </ActionPanel>
             }
           />

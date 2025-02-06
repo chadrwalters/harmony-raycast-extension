@@ -18,12 +18,6 @@
       "mode": "view"
     },
     {
-      "name": "shortcuts",
-      "title": "Manage Harmony Shortcuts",
-      "description": "Create and manage shortcuts for quick access to commands",
-      "mode": "view"
-    },
-    {
       "name": "settings",
       "title": "Harmony Settings",
       "description": "Configure Harmony Hub extension settings",

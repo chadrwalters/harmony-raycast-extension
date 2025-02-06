@@ -103,7 +103,6 @@ export default function DeviceList({ devices }: DeviceListProps) {
                   <Action
                     title="Copy Command"
                     icon={Icon.CopyClipboard}
-                    shortcut={{ modifiers: ["cmd"], key: "." }}
                     onAction={async () => {
                       navigator.clipboard.writeText(command.label);
                       await ToastManager.success({

@@ -12,26 +12,6 @@ const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "default-key-32-chars-12345
 const ALGORITHM = "aes-256-cbc";
 
 export class SecureStorage {
-  private static readonly SHORTCUTS_KEY = "shortcuts";
-
-  private static async encrypt(text: string): Promise<string> {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv);
-    let encrypted = cipher.update(text);
-    encrypted = Buffer.concat([encrypted, cipher.final()]);
-    return iv.toString("hex") + ":" + encrypted.toString("hex");
-  }
-
-  private static async decrypt(text: string): Promise<string> {
-    const [ivHex, encryptedHex] = text.split(":");
-    const iv = Buffer.from(ivHex, "hex");
-    const encryptedText = Buffer.from(encryptedHex, "hex");
-    const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv);
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    return decrypted.toString();
-  }
-
   static async setItem(key: string, value: string): Promise<void> {
     try {
       const encryptedValue = await this.encrypt(value);
@@ -90,26 +70,21 @@ export class SecureStorage {
     }
   }
 
-  static async getShortcuts(): Promise<any[]> {
-    try {
-      const encryptedValue = await LocalStorage.getItem(this.SHORTCUTS_KEY);
-      if (!encryptedValue) {
-        return [];
-      }
-      const decryptedValue = await this.decrypt(encryptedValue);
-      return JSON.parse(decryptedValue);
-    } catch (error) {
-      await ErrorHandler.handleError(error as Error, ErrorCategory.STORAGE);
-      return [];
-    }
+  private static async encrypt(text: string): Promise<string> {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv);
+    let encrypted = cipher.update(text);
+    encrypted = Buffer.concat([encrypted, cipher.final()]);
+    return iv.toString("hex") + ":" + encrypted.toString("hex");
   }
 
-  static async saveShortcuts(shortcuts: any[]): Promise<void> {
-    try {
-      const encryptedValue = await this.encrypt(JSON.stringify(shortcuts));
-      await LocalStorage.setItem(this.SHORTCUTS_KEY, encryptedValue);
-    } catch (error) {
-      await ErrorHandler.handleError(error as Error, ErrorCategory.STORAGE);
-    }
+  private static async decrypt(text: string): Promise<string> {
+    const [ivHex, encryptedHex] = text.split(":");
+    const iv = Buffer.from(ivHex, "hex");
+    const encryptedText = Buffer.from(encryptedHex, "hex");
+    const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv);
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
   }
 }
