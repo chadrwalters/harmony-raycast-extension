@@ -1,2 +1,3 @@
-# raycast-harmony-extension
-A Raycast extensions to control Logitech Harmony 
+# Harmony Control
+
+Integrates Logitech Harmony with Raycast
