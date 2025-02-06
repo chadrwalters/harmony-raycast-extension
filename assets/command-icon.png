@@ -1,7 +1,16 @@
+
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
-<html><head>
-<title>301 Moved Permanently</title>
-</head><body>
-<h1>Moved Permanently</h1>
-<p>The document has moved <a href="https://www.logitech.com/etc.clientlibs/logitech/clientlibs/common/resources/images/favicon.ico">here</a>.</p>
-</body></html>
+<html>
+    <head><title>404 Resource at '/content/dam/logitech/en/favicon/favicon-32x32.png' not found: No resource found</title></head>
+    <body>
+        <h1>Resource at '/content/dam/logitech/en/favicon/favicon-32x32.png' not found: No resource found</h1>
+        <p>Cannot serve request to /content/dam/logitech/en/favicon/favicon-32x32.png on this server</p>
+        
+        
+        
+        <hr>
+        <address>Apache Sling</address>
+    </body>
+</html>
+
+
