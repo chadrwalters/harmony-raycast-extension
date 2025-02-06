@@ -79,5 +79,6 @@
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch"
-  }
+  },
+  "version": "0.0.1"
 }
