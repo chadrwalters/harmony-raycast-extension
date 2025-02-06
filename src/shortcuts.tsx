@@ -1,10 +1,20 @@
 import { useEffect } from "react";
-import { List } from "@raycast/api";
+import { List, getPreferenceValues, LaunchProps } from "@raycast/api";
 import { useHarmony } from "./hooks/useHarmony";
 import ShortcutManager from "./components/ShortcutManager";
 
-export default function Command() {
+interface ShortcutLaunchProps extends LaunchProps {
+  arguments: {
+    hubId?: string;
+    deviceId?: string;
+    commandId?: string;
+    label?: string;
+  };
+}
+
+export default function Command(props: ShortcutLaunchProps) {
   const { state, loadCache } = useHarmony();
+  const { hubId, deviceId, commandId, label } = props.arguments;
 
   useEffect(() => {
     loadCache("last_connected_hub").catch(console.error);
@@ -30,5 +40,5 @@ export default function Command() {
     );
   }
 
-  return <ShortcutManager />;
+  return <ShortcutManager initialShortcut={hubId && deviceId && commandId && label ? { hubId, deviceId, commandId, label } : undefined} />;
 }

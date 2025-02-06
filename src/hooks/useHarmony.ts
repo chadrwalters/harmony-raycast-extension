@@ -3,6 +3,8 @@ import { SessionManager } from "../lib/sessionManager";
 import { ErrorHandler, ErrorCategory } from "../lib/errorHandler";
 import { ToastManager } from "../lib/toastManager";
 import { measureAsync } from "../lib/performance";
+import { HarmonyManager } from "../lib/harmonyClient"; // Fixed import path
+import { Logger } from "../lib/logger"; // Added import for Logger
 
 export interface HarmonyHub {
   id: string;
@@ -88,40 +90,44 @@ export function useHarmony() {
     }
   }, []);
 
-  const executeCommand = useCallback(async (commandId: string) => {
+  const executeCommand = useCallback(async (deviceId: string, commandId: string) => {
     try {
       await measureAsync("executeCommand", async () => {
         if (!(await SessionManager.validateSession())) {
           return;
         }
-        // Command implementation
-        await ToastManager.success("Command Executed");
+        
+        const manager = HarmonyManager.getInstance();
+        
+        // First try to get cached hub data
+        const cachedData = await manager.loadCachedHubData();
+        if (!cachedData) {
+          throw new Error("No hub connection available. Please select a hub first.");
+        }
+
+        // Always connect and verify connection
+        Logger.info("Connecting to hub:", cachedData.hub.name);
+        await manager.connect(cachedData.hub);
+        
+        // Add a small delay after connecting
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Verify connection before executing command
+        try {
+          await manager.ensureConnected();
+        } catch (error) {
+          Logger.error("Connection verification failed:", error);
+          // Try connecting one more time
+          await manager.connect(cachedData.hub);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await manager.ensureConnected();
+        }
+        
+        await manager.executeCommand(deviceId, commandId);
       });
     } catch (error) {
-      await ErrorHandler.handleError(error as Error);
-    }
-  }, []);
-
-  const loadCache = useCallback(async (key: string) => {
-    try {
-      const session = await SessionManager.getSession();
-      if (session) {
-        setState((prev) => ({ ...prev, isConnected: true }));
-        return true;
-      }
-      return false;
-    } catch (error) {
-      await ErrorHandler.handleError(error as Error);
-      return false;
-    }
-  }, []);
-
-  const clearCache = useCallback(async () => {
-    try {
-      await SessionManager.clearCache();
-    } catch (error) {
-      ErrorHandler.handle(error as Error, ErrorCategory.Cache);
-      throw error;
+      await ErrorHandler.handleError(error as Error, ErrorCategory.COMMAND_EXECUTION);
+      throw error; // Re-throw to allow UI to show error
     }
   }, []);
 
@@ -131,7 +137,5 @@ export function useHarmony() {
     connectToHub,
     startActivity,
     executeCommand,
-    loadCache,
-    clearCache,
   };
 }

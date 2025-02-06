@@ -156,13 +156,38 @@ export class HarmonyManager {
       if (this.client) {
         Logger.info("Cleaning up existing client connection");
         await this.disconnect();
+        // Add a small delay after disconnecting
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
+      Logger.info("Creating new client connection to:", hub.ip);
       this.client = await getHarmonyClient(hub.ip);
-      this.connectionState = "connected";
-      Logger.info("Successfully connected to hub:", hub.name);
+      
+      // Wait for the connection to be fully established
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Connection timeout"));
+        }, 5000);
+
+        const checkConnection = async () => {
+          try {
+            // Try to get activities as a connection test
+            await this.client!.getActivities();
+            clearTimeout(timeout);
+            this.connectionState = "connected";
+            Logger.info("Successfully connected to hub:", hub.name);
+            resolve();
+          } catch (error) {
+            Logger.debug("Connection not ready yet, retrying...");
+            setTimeout(checkConnection, 500);
+          }
+        };
+
+        checkConnection();
+      });
     } catch (error) {
       this.connectionState = "disconnected";
+      this.client = null;
       Logger.error("Failed to connect to hub:", error);
       throw error;
     }
@@ -277,15 +302,30 @@ export class HarmonyManager {
   }
 
   private async ensureConnected(): Promise<void> {
-    if (this.connectionState === "disconnected") {
-      Logger.error("Cannot execute command: Not connected to hub");
-      throw new Error("Not connected to hub. Please select a hub first.");
-    }
-
+    Logger.debug("Checking connection state:", this.connectionState);
+    
+    // If we think we're connected but client is null, something's wrong
     if (!this.client) {
       Logger.error("Client is null but connection state is:", this.connectionState);
       this.connectionState = "disconnected";
       throw new Error("Connection error. Please try reconnecting to the hub.");
+    }
+
+    // Try to get activities as a connection test
+    try {
+      await this.client.getActivities();
+      Logger.debug("Connection verified via activities");
+      
+      // Double check connection state
+      if (this.connectionState !== "connected") {
+        Logger.info("Connection verified but state was wrong, fixing...");
+        this.connectionState = "connected";
+      }
+    } catch (error) {
+      Logger.error("Connection test failed:", error);
+      this.connectionState = "disconnected";
+      this.client = null;
+      throw new Error("Lost connection to hub. Please try reconnecting.");
     }
   }
 
@@ -299,7 +339,6 @@ export class HarmonyManager {
         Logger.info("Executing command:", command, "for device:", deviceId);
         Logger.debug("Connection state:", this.connectionState);
         Logger.debug("Retry count:", this.retryCount);
-        Logger.debug("Sending command. DeviceId:", deviceId, "Command:", command);
 
         // Send press command
         await this.client!.send("holdAction", {
@@ -323,37 +362,27 @@ export class HarmonyManager {
         });
 
         Logger.info("Command executed successfully");
-        this.retryCount = 0; // Reset retry count on success
         return;
       } catch (error) {
         Logger.error("Command execution failed:", error);
+        this.retryCount++;
 
         if (this.retryCount < this.MAX_RETRIES) {
-          const delay = this.RETRY_DELAYS[this.retryCount];
-          this.retryCount++;
-
+          const delay = this.RETRY_DELAYS[this.retryCount - 1];
           Logger.info(`Retrying command execution (attempt ${this.retryCount}/${this.MAX_RETRIES}) after ${delay}ms`);
           await new Promise((resolve) => setTimeout(resolve, delay));
 
-          // Try to reconnect if we got a connection error
-          if (error.message?.includes("connect")) {
-            Logger.info("Attempting to reconnect before retry");
-            this.connectionState = "disconnected";
-            if (this.client) {
-              try {
-                await this.client.close();
-              } catch (closeError) {
-                Logger.error("Error closing client:", closeError);
-              }
-              this.client = null;
+          // Try to reconnect before retry
+          Logger.info("Attempting to reconnect before retry");
+          try {
+            const cachedData = await this.loadCachedHubData();
+            if (cachedData) {
+              await this.connect(cachedData.hub);
             }
-            await this.executeCommandWithRetry(deviceId, command);
-          } else {
-            // For other errors, just retry
-            continue;
+          } catch (reconnectError) {
+            Logger.error("Reconnection attempt failed:", reconnectError);
           }
         } else {
-          Logger.error("Max retries reached. Command execution failed.");
           throw error;
         }
       }

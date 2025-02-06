@@ -12,6 +12,8 @@ const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "default-key-32-chars-12345
 const ALGORITHM = "aes-256-cbc";
 
 export class SecureStorage {
+  private static readonly SHORTCUTS_KEY = "shortcuts";
+
   private static async encrypt(text: string): Promise<string> {
     const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv);
@@ -85,6 +87,29 @@ export class SecureStorage {
     } catch (error) {
       await ErrorHandler.handleError(error as Error, ErrorCategory.STORAGE);
       throw error;
+    }
+  }
+
+  static async getShortcuts(): Promise<any[]> {
+    try {
+      const encryptedValue = await LocalStorage.getItem(this.SHORTCUTS_KEY);
+      if (!encryptedValue) {
+        return [];
+      }
+      const decryptedValue = await this.decrypt(encryptedValue);
+      return JSON.parse(decryptedValue);
+    } catch (error) {
+      await ErrorHandler.handleError(error as Error, ErrorCategory.STORAGE);
+      return [];
+    }
+  }
+
+  static async saveShortcuts(shortcuts: any[]): Promise<void> {
+    try {
+      const encryptedValue = await this.encrypt(JSON.stringify(shortcuts));
+      await LocalStorage.setItem(this.SHORTCUTS_KEY, encryptedValue);
+    } catch (error) {
+      await ErrorHandler.handleError(error as Error, ErrorCategory.STORAGE);
     }
   }
 }

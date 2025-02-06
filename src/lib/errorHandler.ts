@@ -32,12 +32,13 @@ export class ErrorHandler {
     await ToastManager.error("Validation Error", error.message);
   }
 
-  static async handleError(message: string, category: ErrorCategory = ErrorCategory.UNKNOWN): Promise<void> {
-    console.error(`[${category}] Error:`, message);
+  static async handleError(error: Error | string, category?: ErrorCategory): Promise<void> {
+    const errorMessage = error instanceof Error ? error.message : error;
+    console.error(`[${category}] Error:`, errorMessage);
 
     switch (category) {
       case ErrorCategory.NETWORK:
-        await this.handleNetworkError(new Error(message));
+        await this.handleNetworkError(error instanceof Error ? error : new Error(errorMessage));
         break;
 
       case ErrorCategory.AUTHENTICATION:
@@ -45,11 +46,11 @@ export class ErrorHandler {
         break;
 
       case ErrorCategory.VALIDATION:
-        await this.handleValidationError(new Error(message));
+        await this.handleValidationError(error instanceof Error ? error : new Error(errorMessage));
         break;
 
       default:
-        await ToastManager.error("Error", message);
+        await ToastManager.error("Error", errorMessage);
         break;
     }
   }

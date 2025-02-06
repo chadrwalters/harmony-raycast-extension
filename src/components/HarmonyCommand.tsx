@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { List, Icon, Action, ActionPanel, showToast, Toast } from "@raycast/api";
+import { List, Icon, Action, ActionPanel, showToast, Toast, open } from "@raycast/api";
 import { ErrorHandler } from "../lib/errorHandler";
 import { HarmonyHub, HarmonyActivity, HarmonyDevice, HarmonyCommand } from "../types/harmony";
 import { ErrorCategory } from "../types/error";
@@ -80,6 +80,10 @@ export default function HarmonyCommand() {
       setState((prev) => ({ ...prev, isLoading: true }));
       const manager = HarmonyManager.getInstance();
 
+      // Always connect first
+      Logger.info("Connecting to hub:", hub.name);
+      await manager.connect(hub);
+
       // Try to load from cache first
       const cachedData = await manager.loadCachedHubData();
       if (cachedData && cachedData.hub.id === hub.id) {
@@ -95,12 +99,8 @@ export default function HarmonyCommand() {
         return;
       }
 
-      // If no cache or different hub, connect and fetch fresh data
+      // If no cache or different hub, fetch fresh data
       Logger.info("No cache found or different hub, fetching fresh data");
-      await manager.connect(hub);
-
-      // Fetch activities and devices
-      Logger.info("Fetching activities and devices");
       const activities = await manager.getActivities();
       Logger.info("Got activities:", activities);
 
@@ -354,15 +354,17 @@ export default function HarmonyCommand() {
                   <Action title="Execute Command" onAction={() => executeCommand(command)} icon={Icon.Terminal} />
                 </ActionPanel.Section>
                 <ActionPanel.Section>
-                  <Action.CreateQuicklink
-                    title="Create Shortcut"
-                    quicklink={{
-                      name: `${state.selectedDevice?.label} - ${command.label}`,
-                      argument: JSON.stringify({
-                        hubId: state.selectedHub?.id,
-                        deviceId: command.deviceId,
-                        commandId: command.id,
-                      }),
+                  <Action
+                    title="Create Keyboard Shortcut"
+                    icon={Icon.Keyboard}
+                    onAction={() => {
+                      const shortcutUrl = `raycast://extensions/chadrwalters/harmony-raycast-extension/shortcuts?hubId=${encodeURIComponent(state.selectedHub?.id || "")}&deviceId=${encodeURIComponent(command.deviceId)}&commandId=${encodeURIComponent(command.id)}&label=${encodeURIComponent(`${state.selectedDevice?.label} - ${command.label}`)}`;
+                      showToast({
+                        style: Toast.Style.Success,
+                        title: "Opening Shortcuts",
+                        message: "Select 'Add Shortcut' to create a new keyboard shortcut",
+                      });
+                      open(shortcutUrl);
                     }}
                   />
                 </ActionPanel.Section>

@@ -1,7 +1,10 @@
 export enum ErrorCategory {
-  NETWORK = "network",
-  VALIDATION = "validation",
-  CACHE = "cache",
-  COMMAND_EXECUTION = "command_execution",
-  UNKNOWN = "unknown",
+  NETWORK = "Network",
+  AUTHENTICATION = "Authentication",
+  VALIDATION = "Validation",
+  STORAGE = "Storage",
+  EXECUTION = "Execution",
+  COMMAND_EXECUTION = "Command Execution",
+  CACHE = "Cache",
+  UNKNOWN = "Unknown",
 }
