@@ -142,19 +142,50 @@ export default function HarmonyCommand() {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       const manager = HarmonyManager.getInstance();
+
+      // Show executing toast
+      await showToast({
+        style: Toast.Style.Animated,
+        title: `Executing ${command.label}...`,
+      });
+
+      // Execute the command exactly as received from the Hub
       await manager.executeCommand(command.deviceId, command.id);
-      setState(prev => ({ ...prev, isLoading: false }));
+      
+      // Show success toast
       await showToast({
         style: Toast.Style.Success,
-        title: `Executed ${command.label}`,
+        title: `Successfully executed ${command.label}`,
       });
+
+      setState(prev => ({ ...prev, isLoading: false }));
     } catch (error) {
       setState(prev => ({
         ...prev,
         error: error as Error,
         isLoading: false,
       }));
-      await ErrorHandler.handleError(error as Error, ErrorCategory.NETWORK);
+
+      // Show appropriate error message based on error type
+      const errorMessage = error.message || "Unknown error occurred";
+      let title = "Command Execution Failed";
+      let message = errorMessage;
+
+      if (errorMessage.includes("Not connected")) {
+        title = "Connection Error";
+        message = "Lost connection to hub. Please try selecting the hub again.";
+      } else if (errorMessage.includes("after 3 attempts")) {
+        title = "Command Failed";
+        message = "Command failed after multiple attempts. Please try again.";
+      }
+
+      await showToast({
+        style: Toast.Style.Failure,
+        title: title,
+        message: message,
+      });
+
+      await ErrorHandler.handleError(error as Error, ErrorCategory.COMMAND_EXECUTION);
     }
   };
 
