@@ -25,7 +25,7 @@ export class SessionManager {
   static async getSession(): Promise<Session | null> {
     try {
       const stored = await LocalStorage.getItem(this.SESSION_KEY);
-      if (!stored || typeof stored !== 'string') {
+      if (!stored || typeof stored !== "string") {
         return null;
       }
 

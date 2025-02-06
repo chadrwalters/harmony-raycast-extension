@@ -1,10 +1,14 @@
-import { Toast, showToast } from '@raycast/api';
+import { Toast, showToast } from "@raycast/api";
 
 interface PerformanceMetric {
   name: string;
   startTime: number;
   endTime?: number;
   duration?: number;
+}
+
+interface MeasureOptions {
+  error?: Error;
 }
 
 class PerformanceMonitor {
@@ -23,7 +27,7 @@ class PerformanceMonitor {
   }
 
   static endMeasure(name: string): number {
-    const metric = this.metrics.find(m => m.name === name && !m.endTime);
+    const metric = this.metrics.find((m) => m.name === name && !m.endTime);
     if (!metric) {
       console.warn(`No active measurement found for: ${name}`);
       return 0;
@@ -59,33 +63,61 @@ class PerformanceMonitor {
   static setThreshold(operation: string, threshold: number): void {
     this.thresholds[operation] = threshold;
   }
-}
 
-export function measure<T>(name: string, fn: () => T): T {
-  PerformanceMonitor.startMeasure(name);
-  try {
-    return fn();
-  } finally {
-    PerformanceMonitor.endMeasure(name);
+  private static logPerformance(name: string, duration: number, options: MeasureOptions): void {
+    const metric: PerformanceMetric = {
+      name,
+      startTime: performance.now() - duration,
+      endTime: performance.now(),
+      duration,
+    };
+
+    if (options.error) {
+      console.error(`Error in ${name}: ${options.error.message}`);
+    }
+
+    const threshold = this.thresholds[name] || this.thresholds.default;
+    if (duration > threshold) {
+      this.reportSlowOperation(metric);
+    }
+
+    this.metrics.push(metric);
   }
 }
 
 export async function measureAsync<T>(
   name: string,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
+  options: MeasureOptions = {}
 ): Promise<T> {
   PerformanceMonitor.startMeasure(name);
   try {
-    return await fn();
-  } finally {
+    const result = await fn();
     PerformanceMonitor.endMeasure(name);
+    return result;
+  } catch (error) {
+    PerformanceMonitor.endMeasure(name);
+    throw error;
   }
 }
 
-export function debounce<T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
+export function measure<T>(
+  name: string,
+  fn: () => T,
+  options: MeasureOptions = {}
+): T {
+  PerformanceMonitor.startMeasure(name);
+  try {
+    const result = fn();
+    PerformanceMonitor.endMeasure(name);
+    return result;
+  } catch (error) {
+    PerformanceMonitor.endMeasure(name);
+    throw error;
+  }
+}
+
+export function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout;
 
   return function executedFunction(...args: Parameters<T>) {
@@ -99,17 +131,14 @@ export function debounce<T extends (...args: any[]) => any>(
   };
 }
 
-export function throttle<T extends (...args: any[]) => any>(
-  func: T,
-  limit: number
-): (...args: Parameters<T>) => void {
+export function throttle<T extends (...args: any[]) => any>(func: T, limit: number): (...args: Parameters<T>) => void {
   let inThrottle: boolean;
-  
+
   return function executedFunction(...args: Parameters<T>) {
     if (!inThrottle) {
       func(...args);
       inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
+      setTimeout(() => (inThrottle = false), limit);
     }
   };
 }

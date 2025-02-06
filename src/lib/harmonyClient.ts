@@ -11,7 +11,7 @@ export class HarmonyManager {
   private explorer: Explorer | null = null;
   private static instance: HarmonyManager;
   private discoveredHubs: HarmonyHub[] = [];
-  private connectionState: 'disconnected' | 'connecting' | 'connected' = 'disconnected';
+  private connectionState: "disconnected" | "connecting" | "connected" = "disconnected";
   private retryCount = 0;
   private readonly MAX_RETRIES = 3;
   private readonly RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff delays in ms
@@ -40,7 +40,7 @@ export class HarmonyManager {
       }
       this.explorer = null;
       // Wait a bit to ensure port is released
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
 
@@ -64,11 +64,11 @@ export class HarmonyManager {
   private async _discoverHubs(): Promise<HarmonyHub[]> {
     try {
       await this.cleanupExplorer();
-      
+
       Logger.info("Starting hub discovery...");
       // Try a few different ports if the default is in use
       const ports = [this.DEFAULT_PORT, 61992, 61993, 61994, 61995];
-      
+
       for (const port of ports) {
         try {
           this.explorer = new Explorer(port);
@@ -96,11 +96,11 @@ export class HarmonyManager {
         this.explorer!.on("online", (hub) => {
           // Log the complete hub object to see all available properties
           Logger.debug("Raw hub data:", JSON.stringify(hub, null, 2));
-          
+
           const fullInfo = hub.fullHubInfo || {};
-          Logger.info("Found hub:", { 
-            uuid: hub.uuid, 
-            ip: hub.ip, 
+          Logger.info("Found hub:", {
+            uuid: hub.uuid,
+            ip: hub.ip,
             name: hub.friendlyName,
             port: fullInfo.port,
             hubId: fullInfo.hubId,
@@ -118,9 +118,9 @@ export class HarmonyManager {
             hubId: fullInfo.hubId,
             version: fullInfo.current_fw_version,
           };
-          
+
           // Only add if not already discovered
-          if (!this.discoveredHubs.some(h => h.id === harmonyHub.id)) {
+          if (!this.discoveredHubs.some((h) => h.id === harmonyHub.id)) {
             this.discoveredHubs.push(harmonyHub);
           }
         });
@@ -151,18 +151,18 @@ export class HarmonyManager {
   async connect(hub: HarmonyHub): Promise<void> {
     try {
       Logger.info("Connecting to hub:", hub.name);
-      this.connectionState = 'connecting';
-      
+      this.connectionState = "connecting";
+
       if (this.client) {
         Logger.info("Cleaning up existing client connection");
         await this.disconnect();
       }
 
       this.client = await getHarmonyClient(hub.ip);
-      this.connectionState = 'connected';
+      this.connectionState = "connected";
       Logger.info("Successfully connected to hub:", hub.name);
     } catch (error) {
-      this.connectionState = 'disconnected';
+      this.connectionState = "disconnected";
       Logger.error("Failed to connect to hub:", error);
       throw error;
     }
@@ -175,13 +175,13 @@ export class HarmonyManager {
         await this.client.end();
         this.client = null;
       }
-      this.connectionState = 'disconnected';
+      this.connectionState = "disconnected";
       Logger.info("Successfully disconnected from hub");
     } catch (error) {
       Logger.error("Error during disconnect:", error);
       // Reset state even if there's an error
       this.client = null;
-      this.connectionState = 'disconnected';
+      this.connectionState = "disconnected";
       throw error;
     }
   }
@@ -240,17 +240,17 @@ export class HarmonyManager {
         }
       });
 
-      const devices = commands.device.map(dev => ({
+      const devices = commands.device.map((dev) => ({
         id: dev.id,
         label: dev.label,
         type: dev.type,
-        commands: dev.controlGroup.flatMap(group => 
-          group.function.map(fn => ({
+        commands: dev.controlGroup.flatMap((group) =>
+          group.function.map((fn) => ({
             id: fn.name,
             label: fn.label || fn.name,
-            deviceId: dev.id
-          }))
-        )
+            deviceId: dev.id,
+          })),
+        ),
       }));
       Logger.info("Found", devices.length, "devices");
       Logger.debug("Transformed devices:", devices);
@@ -277,68 +277,68 @@ export class HarmonyManager {
   }
 
   private async ensureConnected(): Promise<void> {
-    if (this.connectionState === 'disconnected') {
+    if (this.connectionState === "disconnected") {
       Logger.error("Cannot execute command: Not connected to hub");
       throw new Error("Not connected to hub. Please select a hub first.");
     }
 
     if (!this.client) {
       Logger.error("Client is null but connection state is:", this.connectionState);
-      this.connectionState = 'disconnected';
+      this.connectionState = "disconnected";
       throw new Error("Connection error. Please try reconnecting to the hub.");
     }
   }
 
   private async executeCommandWithRetry(deviceId: string, command: string): Promise<void> {
     Logger.info(`Executing command: ${command} for device: ${deviceId}`);
-    
+
     while (this.retryCount < this.MAX_RETRIES) {
       try {
         await this.ensureConnected();
-        
+
         Logger.info("Executing command:", command, "for device:", deviceId);
         Logger.debug("Connection state:", this.connectionState);
         Logger.debug("Retry count:", this.retryCount);
         Logger.debug("Sending command. DeviceId:", deviceId, "Command:", command);
-        
+
         // Send press command
-        await this.client!.send('holdAction', {
+        await this.client!.send("holdAction", {
           command: command,
           deviceId: deviceId,
           status: "press",
           timestamp: "0",
-          verb: "render"
+          verb: "render",
         });
 
         // Wait 100ms between press and release
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
         // Send release command
-        await this.client!.send('holdAction', {
+        await this.client!.send("holdAction", {
           command: command,
           deviceId: deviceId,
           status: "release",
-          timestamp: "0", 
-          verb: "render"
+          timestamp: "0",
+          verb: "render",
         });
-        
+
         Logger.info("Command executed successfully");
         this.retryCount = 0; // Reset retry count on success
         return;
       } catch (error) {
         Logger.error("Command execution failed:", error);
-        
+
         if (this.retryCount < this.MAX_RETRIES) {
           const delay = this.RETRY_DELAYS[this.retryCount];
           this.retryCount++;
-          
+
           Logger.info(`Retrying command execution (attempt ${this.retryCount}/${this.MAX_RETRIES}) after ${delay}ms`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          
+          await new Promise((resolve) => setTimeout(resolve, delay));
+
           // Try to reconnect if we got a connection error
-          if (error.message?.includes('connect')) {
+          if (error.message?.includes("connect")) {
             Logger.info("Attempting to reconnect before retry");
-            this.connectionState = 'disconnected';
+            this.connectionState = "disconnected";
             if (this.client) {
               try {
                 await this.client.close();
@@ -363,18 +363,15 @@ export class HarmonyManager {
   async cacheHubData(hub: HarmonyHub): Promise<void> {
     try {
       Logger.info("Caching hub data for:", hub.name);
-      const [activities, devices] = await Promise.all([
-        this.getActivities(),
-        this.getDevices()
-      ]);
-      
+      const [activities, devices] = await Promise.all([this.getActivities(), this.getDevices()]);
+
       const data: CachedHarmonyData = {
         hub,
         activities,
         devices,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
-      
+
       await LocalStorage.setItem(CACHE_KEY, JSON.stringify(data));
       Logger.info("Hub data cached successfully");
     } catch (error) {
@@ -407,6 +404,36 @@ export class HarmonyManager {
       Logger.info("Hub cache cleared successfully");
     } catch (error) {
       Logger.error("Failed to clear hub cache:", error);
+      throw error;
+    }
+  }
+
+  private async discoverHub(): Promise<void> {
+    try {
+      Logger.info("Starting hub discovery...");
+      const explorer: Explorer = new Explorer();
+      const discoveryTimeout: number = 5000;
+
+      explorer.on("online", async (hub: HarmonyHub) => {
+        Logger.debug("Raw hub data:", JSON.stringify(hub, null, 2));
+        const harmonyHub: HarmonyHub = {
+          id: hub.uuid,
+          ip: hub.ip,
+          name: hub.friendlyName,
+          remoteId: hub.fullHubInfo?.remoteId,
+          port: hub.fullHubInfo?.port || "5222",
+          hubId: hub.fullHubInfo?.hubId,
+          version: hub.fullHubInfo?.current_fw_version,
+        };
+        Logger.info("Found hub:", harmonyHub);
+      });
+
+      await explorer.start();
+      await new Promise((resolve) => setTimeout(resolve, discoveryTimeout));
+      await explorer.stop();
+      Logger.info("Hub discovery complete.");
+    } catch (error) {
+      Logger.error("Failed to discover hub:", error);
       throw error;
     }
   }

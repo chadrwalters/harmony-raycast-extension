@@ -21,9 +21,7 @@ export class Validator {
     },
     {
       field: "ip",
-      validate: (hub) =>
-        typeof hub.ip === "string" &&
-        /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(hub.ip),
+      validate: (hub) => typeof hub.ip === "string" && /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(hub.ip),
       message: "Hub IP must be a valid IPv4 address",
     },
   ];
@@ -87,7 +85,7 @@ export class Validator {
 
   static validateDevice(device: HarmonyDevice): void {
     this.validate(device, this.deviceRules);
-    device.commands.forEach(command => this.validateCommand(command));
+    device.commands.forEach((command) => this.validateCommand(command));
   }
 
   static validateCommand(command: HarmonyCommand): void {
@@ -102,11 +100,14 @@ export class Validator {
     }
   }
 
-  static async validateWithHandler<T>(validator: () => void): Promise<void> {
+  static async validateWithHandler(validator: () => void): Promise<void> {
     try {
       validator();
     } catch (error) {
-      await ErrorHandler.handleError(error instanceof Error ? error : new Error(String(error)), ErrorCategory.VALIDATION);
+      await ErrorHandler.handleError(
+        error instanceof Error ? error : new Error(String(error)),
+        ErrorCategory.VALIDATION,
+      );
     }
   }
 
@@ -169,5 +170,34 @@ export class Validator {
     } catch (error) {
       throw new Error(`Command response validation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  static validateObject<T extends Record<string, unknown>>(obj: T, requiredFields: (keyof T)[]): void {
+    for (const field of requiredFields) {
+      if (!obj[field]) {
+        throw new Error(`Missing required field: ${String(field)}`);
+      }
+    }
+  }
+
+  static validateString(value: unknown, fieldName: string): string {
+    if (typeof value !== 'string' || !value.trim()) {
+      throw new Error(`Invalid ${fieldName}: must be a non-empty string`);
+    }
+    return value;
+  }
+
+  static validateNumber(value: unknown, fieldName: string): number {
+    if (typeof value !== 'number' || isNaN(value)) {
+      throw new Error(`Invalid ${fieldName}: must be a number`);
+    }
+    return value;
+  }
+
+  static validateBoolean(value: unknown, fieldName: string): boolean {
+    if (typeof value !== 'boolean') {
+      throw new Error(`Invalid ${fieldName}: must be a boolean`);
+    }
+    return value;
   }
 }

@@ -1,15 +1,8 @@
 import { useState, useMemo } from "react";
-import {
-  List,
-  Icon,
-  ActionPanel,
-  Action,
-  useNavigation,
-  Color,
-} from "@raycast/api";
+import { List, Icon, ActionPanel, Action, useNavigation, Color } from "@raycast/api";
 import type { HarmonyDevice, HarmonyCommand } from "../types/harmony";
 import { useHarmony } from "../hooks/useHarmony";
-import { FeedbackState, LoadingStates, ErrorStates } from "./FeedbackState";
+import { FeedbackState, ErrorStates } from "./FeedbackState";
 import ToastManager from "../lib/toastManager";
 
 interface DeviceListProps {
@@ -24,13 +17,11 @@ export default function DeviceList({ devices }: DeviceListProps) {
 
   const filteredDevices = useMemo(() => {
     if (!searchText) return devices;
-    
+
     const lowerSearch = searchText.toLowerCase();
-    return devices.filter(device => {
+    return devices.filter((device) => {
       const matchesDevice = device.label.toLowerCase().includes(lowerSearch);
-      const matchesCommand = device.commands.some(cmd => 
-        cmd.label.toLowerCase().includes(lowerSearch)
-      );
+      const matchesCommand = device.commands.some((cmd) => cmd.label.toLowerCase().includes(lowerSearch));
       return matchesDevice || matchesCommand;
     });
   }, [devices, searchText]);
@@ -81,11 +72,7 @@ export default function DeviceList({ devices }: DeviceListProps) {
       isShowingDetail
     >
       {filteredDevices.map((device) => (
-        <List.Section
-          key={device.id}
-          title={device.label}
-          subtitle={`${device.commands.length} commands`}
-        >
+        <List.Section key={device.id} title={device.label} subtitle={`${device.commands.length} commands`}>
           {device.commands.map((command) => (
             <List.Item
               key={`${device.id}-${command.id}`}
@@ -96,23 +83,11 @@ export default function DeviceList({ devices }: DeviceListProps) {
                   markdown={`# ${command.label}\n\n**Device:** ${device.label}\n**Type:** ${device.type}\n\nExecute this command to control your ${device.label}.`}
                   metadata={
                     <List.Item.Detail.Metadata>
-                      <List.Item.Detail.Metadata.Label
-                        title="Device"
-                        text={device.label}
-                      />
-                      <List.Item.Detail.Metadata.Label
-                        title="Command"
-                        text={command.label}
-                      />
-                      <List.Item.Detail.Metadata.Label
-                        title="Type"
-                        text={device.type}
-                      />
+                      <List.Item.Detail.Metadata.Label title="Device" text={device.label} />
+                      <List.Item.Detail.Metadata.Label title="Command" text={command.label} />
+                      <List.Item.Detail.Metadata.Label title="Type" text={device.type} />
                       <List.Item.Detail.Metadata.TagList title="Status">
-                        <List.Item.Detail.Metadata.TagList.Item
-                          text="Ready"
-                          color={Color.Green}
-                        />
+                        <List.Item.Detail.Metadata.TagList.Item text="Ready" color={Color.Green} />
                       </List.Item.Detail.Metadata.TagList>
                     </List.Item.Detail.Metadata>
                   }

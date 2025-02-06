@@ -1,21 +1,21 @@
 import { environment } from "@raycast/api";
 
 export class Logger {
-  static debug(message: string, ...args: any[]) {
+  static debug(...args: unknown[]): void {
     if (environment.isDevelopment) {
-      console.log(`[DEBUG] ${message}`, ...args);
+      console.debug(...args);
     }
   }
 
-  static info(message: string, ...args: any[]) {
-    console.log(`[INFO] ${message}`, ...args);
+  static info(...args: unknown[]): void {
+    console.info(...args);
   }
 
-  static warn(message: string, ...args: any[]) {
-    console.warn(`[WARN] ${message}`, ...args);
+  static warn(...args: unknown[]): void {
+    console.warn(...args);
   }
 
-  static error(message: string, ...args: any[]) {
-    console.error(`[ERROR] ${message}`, ...args);
+  static error(...args: unknown[]): void {
+    console.error(...args);
   }
 }

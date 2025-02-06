@@ -6,8 +6,8 @@
   "icon": "command-icon.png",
   "author": "chad",
   "categories": [
-    "Applications",
-    "Remote Control"
+    "Media",
+    "System"
   ],
   "license": "MIT",
   "commands": [
@@ -37,7 +37,8 @@
       "required": false,
       "title": "Auto Connect",
       "description": "Automatically connect to last used hub",
-      "default": true
+      "default": true,
+      "label": "Auto Connect"
     },
     {
       "name": "lastHubId",
@@ -45,29 +46,25 @@
       "required": false,
       "title": "Last Hub ID",
       "description": "ID of the last connected hub",
-      "default": ""
+      "default": "",
+      "label": "Last Hub ID"
     }
   ],
   "dependencies": {
-    "@harmonyhub/client-ws": "^1.0.9",
+    "@harmonyhub/client-ws": "^1.0.10",
     "@harmonyhub/discover": "^1.0.9",
     "@raycast/api": "^1.64.4",
-    "@xstate/react": "^4.0.2",
-    "xstate": "^5.5.1"
+    "@raycast/utils": "^1.10.1",
+    "node-machine-id": "^1.1.12",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@raycast/eslint-config": "^1.0.6",
-    "@testing-library/jest-dom": "^5.16.5",
-    "@testing-library/react": "^14.0.0",
-    "@testing-library/user-event": "^14.6.1",
-    "@types/jest": "^29.5.0",
     "@types/node": "^20.8.10",
     "@types/react": "^18.2.27",
+    "@types/uuid": "^9.0.7",
     "eslint": "^8.51.0",
-    "jest": "^29.5.0",
-    "jest-environment-jsdom": "^29.5.0",
     "prettier": "^3.0.3",
-    "ts-jest": "^29.1.0",
     "typescript": "^5.2.2"
   },
   "scripts": {
@@ -75,10 +72,6 @@
     "dev": "ray develop",
     "fix-lint": "ray lint --fix",
     "lint": "ray lint",
-    "publish": "npx @raycast/api@latest publish",
-    "test": "jest",
-    "test:coverage": "jest --coverage",
-    "test:watch": "jest --watch"
-  },
-  "version": "0.0.1"
+    "publish": "npx @raycast/api@latest publish"
+  }
 }

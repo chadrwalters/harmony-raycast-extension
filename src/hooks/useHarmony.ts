@@ -47,7 +47,7 @@ export function useHarmony() {
           { id: "1", friendlyName: "Living Room", ip: "192.168.1.100" },
           { id: "2", friendlyName: "Bedroom", ip: "192.168.1.101" },
         ];
-        setState(prev => ({ ...prev, hubs: mockHubs }));
+        setState((prev) => ({ ...prev, hubs: mockHubs }));
       });
     } catch (error) {
       await ErrorHandler.handleError(error as Error, ErrorCategory.NETWORK);
@@ -58,7 +58,7 @@ export function useHarmony() {
     try {
       await measureAsync("connectToHub", async () => {
         await SessionManager.createSession(hub.id);
-        setState(prev => ({ ...prev, isConnected: true }));
+        setState((prev) => ({ ...prev, isConnected: true }));
         await ToastManager.success("Connected to Hub");
       });
     } catch (error) {
@@ -73,10 +73,10 @@ export function useHarmony() {
           return;
         }
         // Activity implementation
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
           currentActivity: activityId,
-          activities: prev.activities.map(a => ({
+          activities: prev.activities.map((a) => ({
             ...a,
             isActive: a.id === activityId,
           })),
@@ -88,7 +88,7 @@ export function useHarmony() {
     }
   }, []);
 
-  const executeCommand = useCallback(async (deviceId: string, commandId: string) => {
+  const executeCommand = useCallback(async (commandId: string) => {
     try {
       await measureAsync("executeCommand", async () => {
         if (!(await SessionManager.validateSession())) {
@@ -106,7 +106,7 @@ export function useHarmony() {
     try {
       const session = await SessionManager.getSession();
       if (session) {
-        setState(prev => ({ ...prev, isConnected: true }));
+        setState((prev) => ({ ...prev, isConnected: true }));
         return true;
       }
       return false;

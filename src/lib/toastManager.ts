@@ -1,4 +1,4 @@
-import { Toast, showToast } from '@raycast/api';
+import { Toast, showToast } from "@raycast/api";
 
 export class ToastManager {
   static async success(title: string, message?: string): Promise<void> {
@@ -35,14 +35,14 @@ export class ToastManager {
 
   static async progressWithSteps(steps: string[]): Promise<void> {
     const toast = await this.progress(steps[0]);
-    
+
     for (let i = 1; i < steps.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 800));
       toast.title = steps[i];
     }
 
     toast.style = Toast.Style.Success;
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     toast.hide();
   }
 }

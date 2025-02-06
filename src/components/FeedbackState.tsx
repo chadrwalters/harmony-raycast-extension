@@ -56,13 +56,15 @@ export const ErrorStates = {
   },
   CONNECTION_FAILED: {
     title: "Connection Failed",
-    description: "Unable to connect to your Harmony Hub. Try:\n• Checking your network connection\n• Restarting your Hub\n• Verifying Hub's IP address",
+    description:
+      "Unable to connect to your Harmony Hub. Try:\n• Checking your network connection\n• Restarting your Hub\n• Verifying Hub's IP address",
     icon: Icon.ExclamationMark,
     color: Color.Red,
   },
   COMMAND_FAILED: {
     title: "Command Failed",
-    description: "Failed to execute the command. Try:\n• Checking device power\n• Verifying IR line of sight\n• Retrying the command",
+    description:
+      "Failed to execute the command. Try:\n• Checking device power\n• Verifying IR line of sight\n• Retrying the command",
     icon: Icon.ExclamationMark,
     color: Color.Red,
   },

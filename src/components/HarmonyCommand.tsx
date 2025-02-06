@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { List, Icon, Action, ActionPanel, showToast, Toast } from '@raycast/api';
-import { ErrorHandler } from '../lib/errorHandler';
-import { HarmonyHub, HarmonyActivity, HarmonyDevice, HarmonyCommand } from '../types/harmony';
-import { ErrorCategory } from '../types/error';
-import { HarmonyManager } from '../lib/harmonyClient';
-import { Logger } from '../lib/logger';
+import React, { useState, useEffect } from "react";
+import { List, Icon, Action, ActionPanel, showToast, Toast } from "@raycast/api";
+import { ErrorHandler } from "../lib/errorHandler";
+import { HarmonyHub, HarmonyActivity, HarmonyDevice, HarmonyCommand } from "../types/harmony";
+import { ErrorCategory } from "../types/error";
+import { HarmonyManager } from "../lib/harmonyClient";
+import { Logger } from "../lib/logger";
 
 interface State {
   hubs: HarmonyHub[];
@@ -15,7 +15,7 @@ interface State {
   commands: HarmonyCommand[];
   isLoading: boolean;
   error: Error | null;
-  view: 'hubs' | 'activities' | 'devices' | 'commands';
+  view: "hubs" | "activities" | "devices" | "commands";
 }
 
 export default function HarmonyCommand() {
@@ -28,7 +28,7 @@ export default function HarmonyCommand() {
     commands: [],
     isLoading: false,
     error: null,
-    view: 'hubs',
+    view: "hubs",
   });
 
   useEffect(() => {
@@ -41,17 +41,17 @@ export default function HarmonyCommand() {
 
   const loadHubs = async () => {
     try {
-      setState(prev => ({ ...prev, isLoading: true }));
+      setState((prev) => ({ ...prev, isLoading: true }));
       const manager = HarmonyManager.getInstance();
       const hubs = await manager.discoverHubs();
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         hubs,
         isLoading: false,
-        view: 'hubs',
+        view: "hubs",
       }));
     } catch (error) {
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         error: error as Error,
         isLoading: false,
@@ -62,9 +62,9 @@ export default function HarmonyCommand() {
 
   const loadActivities = async (hub: HarmonyHub) => {
     try {
-      setState(prev => ({ ...prev, isLoading: true }));
+      setState((prev) => ({ ...prev, isLoading: true }));
       const manager = HarmonyManager.getInstance();
-      
+
       // Clear existing cache to force fresh fetch
       await manager.clearCache();
       Logger.info("Cleared hub cache");
@@ -72,28 +72,28 @@ export default function HarmonyCommand() {
       // Connect to hub and load fresh data
       Logger.info("Connecting to hub and fetching fresh data");
       await manager.connect(hub);
-      
+
       // Fetch activities and devices
       Logger.info("Fetching activities and devices");
       const activities = await manager.getActivities();
       Logger.info("Got activities:", activities);
-      
+
       const devices = await manager.getDevices();
       Logger.info("Got devices:", devices);
 
       // Cache the data
       await manager.cacheHubData(hub);
 
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         selectedHub: hub,
         activities: activities || [],
         devices: devices || [],
         isLoading: false,
-        view: 'activities',
+        view: "activities",
       }));
     } catch (error) {
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         error: error as Error,
         isLoading: false,
@@ -102,34 +102,27 @@ export default function HarmonyCommand() {
     }
   };
 
-  const loadDevices = () => {
-    setState(prev => ({
-      ...prev,
-      view: 'devices',
-    }));
-  };
-
   const loadCommands = async (device: HarmonyDevice) => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
       selectedDevice: device,
       commands: device.commands || [],
-      view: 'commands',
+      view: "commands",
     }));
   };
 
   const startActivity = async (activity: HarmonyActivity) => {
     try {
-      setState(prev => ({ ...prev, isLoading: true }));
+      setState((prev) => ({ ...prev, isLoading: true }));
       const manager = HarmonyManager.getInstance();
       await manager.startActivity(activity.id);
-      setState(prev => ({ ...prev, isLoading: false }));
+      setState((prev) => ({ ...prev, isLoading: false }));
       await showToast({
         style: Toast.Style.Success,
         title: `Started ${activity.label}`,
       });
     } catch (error) {
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         error: error as Error,
         isLoading: false,
@@ -140,7 +133,7 @@ export default function HarmonyCommand() {
 
   const executeCommand = async (command: HarmonyCommand) => {
     try {
-      setState(prev => ({ ...prev, isLoading: true }));
+      setState((prev) => ({ ...prev, isLoading: true }));
       const manager = HarmonyManager.getInstance();
 
       // Show executing toast
@@ -151,16 +144,16 @@ export default function HarmonyCommand() {
 
       // Execute the command exactly as received from the Hub
       await manager.executeCommand(command.deviceId, command.id);
-      
+
       // Show success toast
       await showToast({
         style: Toast.Style.Success,
         title: `Successfully executed ${command.label}`,
       });
 
-      setState(prev => ({ ...prev, isLoading: false }));
+      setState((prev) => ({ ...prev, isLoading: false }));
     } catch (error) {
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         error: error as Error,
         isLoading: false,
@@ -198,11 +191,7 @@ export default function HarmonyCommand() {
           description={state.error.message}
           actions={
             <ActionPanel>
-              <Action
-                title="Try Again"
-                onAction={loadHubs}
-                icon={Icon.ArrowClockwise}
-              />
+              <Action title="Try Again" onAction={loadHubs} icon={Icon.ArrowClockwise} />
             </ActionPanel>
           }
         />
@@ -213,15 +202,12 @@ export default function HarmonyCommand() {
   if (state.isLoading) {
     return (
       <List>
-        <List.EmptyView
-          icon={Icon.CircleProgress}
-          title="Loading..."
-        />
+        <List.EmptyView icon={Icon.CircleProgress} title="Loading..." />
       </List>
     );
   }
 
-  if (state.view === 'hubs') {
+  if (state.view === "hubs") {
     return (
       <List>
         {state.hubs.length === 0 ? (
@@ -231,7 +217,7 @@ export default function HarmonyCommand() {
             description="Make sure your Harmony Hub is connected to the network"
           />
         ) : (
-          state.hubs.map(hub => (
+          state.hubs.map((hub) => (
             <List.Item
               key={hub.id}
               title={hub.name}
@@ -239,11 +225,7 @@ export default function HarmonyCommand() {
               icon={Icon.Wifi}
               actions={
                 <ActionPanel>
-                  <Action
-                    title="Select Hub"
-                    onAction={() => loadActivities(hub)}
-                    icon={Icon.ArrowRight}
-                  />
+                  <Action title="Select Hub" onAction={() => loadActivities(hub)} icon={Icon.ArrowRight} />
                 </ActionPanel>
               }
             />
@@ -253,7 +235,7 @@ export default function HarmonyCommand() {
     );
   }
 
-  if (state.view === 'activities') {
+  if (state.view === "activities") {
     return (
       <List
         navigationTitle={`${state.selectedHub?.name} - Activities`}
@@ -261,25 +243,21 @@ export default function HarmonyCommand() {
           <List.Dropdown
             tooltip="View"
             value={state.view}
-            onChange={(newValue) => setState(prev => ({ ...prev, view: newValue as 'activities' | 'devices' }))}
+            onChange={(newValue) => setState((prev) => ({ ...prev, view: newValue as "activities" | "devices" }))}
           >
             <List.Dropdown.Item title="Activities" value="activities" />
             <List.Dropdown.Item title="Devices" value="devices" />
           </List.Dropdown>
         }
       >
-        {state.activities.map(activity => (
+        {state.activities.map((activity) => (
           <List.Item
             key={activity.id}
             title={activity.label}
             icon={activity.isAVActivity ? Icon.Video : Icon.Star}
             actions={
               <ActionPanel>
-                <Action
-                  title="Start Activity"
-                  onAction={() => startActivity(activity)}
-                  icon={Icon.Play}
-                />
+                <Action title="Start Activity" onAction={() => startActivity(activity)} icon={Icon.Play} />
               </ActionPanel>
             }
           />
@@ -288,7 +266,7 @@ export default function HarmonyCommand() {
     );
   }
 
-  if (state.view === 'devices') {
+  if (state.view === "devices") {
     return (
       <List
         navigationTitle={`${state.selectedHub?.name} - Devices`}
@@ -296,26 +274,26 @@ export default function HarmonyCommand() {
           <List.Dropdown
             tooltip="View"
             value={state.view}
-            onChange={(newValue) => setState(prev => ({ ...prev, view: newValue as 'activities' | 'devices' }))}
+            onChange={(newValue) => setState((prev) => ({ ...prev, view: newValue as "activities" | "devices" }))}
           >
             <List.Dropdown.Item title="Activities" value="activities" />
             <List.Dropdown.Item title="Devices" value="devices" />
           </List.Dropdown>
         }
       >
-        {state.devices.map(device => {
+        {state.devices.map((device) => {
           let icon = Icon.Tv;
           switch (device.type) {
-            case 'audio':
+            case "audio":
               icon = Icon.Speaker;
               break;
-            case 'streaming':
+            case "streaming":
               icon = Icon.Video;
               break;
-            case 'game':
+            case "game":
               icon = Icon.Gamepad;
               break;
-            case 'dvd':
+            case "dvd":
               icon = Icon.Circle;
               break;
           }
@@ -326,11 +304,7 @@ export default function HarmonyCommand() {
               icon={icon}
               actions={
                 <ActionPanel>
-                  <Action
-                    title="View Commands"
-                    onAction={() => loadCommands(device)}
-                    icon={Icon.List}
-                  />
+                  <Action title="View Commands" onAction={() => loadCommands(device)} icon={Icon.List} />
                 </ActionPanel>
               }
             />
@@ -343,7 +317,7 @@ export default function HarmonyCommand() {
   return (
     <List navigationTitle={`${state.selectedHub?.name} - ${state.selectedDevice?.label} Commands`}>
       <List.Section title="Commands">
-        {state.commands.map(command => (
+        {state.commands.map((command) => (
           <List.Item
             key={command.id}
             title={command.label}
@@ -351,11 +325,7 @@ export default function HarmonyCommand() {
             actions={
               <ActionPanel>
                 <ActionPanel.Section>
-                  <Action
-                    title="Execute Command"
-                    onAction={() => executeCommand(command)}
-                    icon={Icon.Terminal}
-                  />
+                  <Action title="Execute Command" onAction={() => executeCommand(command)} icon={Icon.Terminal} />
                 </ActionPanel.Section>
                 <ActionPanel.Section>
                   <Action.CreateQuicklink

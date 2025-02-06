@@ -13,11 +13,7 @@ export default function Command() {
   if (state.error) {
     return (
       <List>
-        <List.EmptyView
-          icon={{ source: "error.png" }}
-          title="Error"
-          description={state.error.message}
-        />
+        <List.EmptyView icon={{ source: "error.png" }} title="Error" description={state.error.message} />
       </List>
     );
   }
