@@ -43,6 +43,21 @@ export default function HarmonyCommand() {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
       const manager = HarmonyManager.getInstance();
+
+      // Try to load from cache first
+      const cachedData = await manager.loadCachedHubData();
+      if (cachedData) {
+        Logger.info("Using cached hub data");
+        setState((prev) => ({
+          ...prev,
+          hubs: [cachedData.hub],
+          isLoading: false,
+        }));
+        return;
+      }
+
+      // If no cache, discover hubs
+      Logger.info("No cache found, discovering hubs");
       const hubs = await manager.discoverHubs();
       setState((prev) => ({
         ...prev,
@@ -65,12 +80,23 @@ export default function HarmonyCommand() {
       setState((prev) => ({ ...prev, isLoading: true }));
       const manager = HarmonyManager.getInstance();
 
-      // Clear existing cache to force fresh fetch
-      await manager.clearCache();
-      Logger.info("Cleared hub cache");
+      // Try to load from cache first
+      const cachedData = await manager.loadCachedHubData();
+      if (cachedData && cachedData.hub.id === hub.id) {
+        Logger.info("Using cached hub data");
+        setState((prev) => ({
+          ...prev,
+          activities: cachedData.activities,
+          devices: cachedData.devices,
+          selectedHub: hub,
+          isLoading: false,
+          view: "activities",
+        }));
+        return;
+      }
 
-      // Connect to hub and load fresh data
-      Logger.info("Connecting to hub and fetching fresh data");
+      // If no cache or different hub, connect and fetch fresh data
+      Logger.info("No cache found or different hub, fetching fresh data");
       await manager.connect(hub);
 
       // Fetch activities and devices

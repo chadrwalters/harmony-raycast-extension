@@ -9,6 +9,8 @@ interface Session {
 
 export class SessionManager {
   private static readonly SESSION_KEY = "harmony_session";
+  private static readonly CACHE_KEY = "harmony_cache";
+  private static readonly HUB_CACHE_KEY = "harmony_hub_cache";
   private static readonly SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
   private static readonly ACTIVITY_THRESHOLD = 30 * 60 * 1000; // 30 minutes
 
@@ -57,6 +59,14 @@ export class SessionManager {
 
   static async clearSession(): Promise<void> {
     await LocalStorage.removeItem(this.SESSION_KEY);
+  }
+
+  static async clearCache(): Promise<void> {
+    await Promise.all([
+      LocalStorage.removeItem(this.CACHE_KEY),
+      LocalStorage.removeItem(this.HUB_CACHE_KEY),
+    ]);
+    ToastManager.success("Cache cleared successfully");
   }
 
   static async validateSession(): Promise<boolean> {

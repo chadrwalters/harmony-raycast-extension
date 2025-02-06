@@ -116,6 +116,15 @@ export function useHarmony() {
     }
   }, []);
 
+  const clearCache = useCallback(async () => {
+    try {
+      await SessionManager.clearCache();
+    } catch (error) {
+      ErrorHandler.handle(error as Error, ErrorCategory.Cache);
+      throw error;
+    }
+  }, []);
+
   return {
     state,
     discoverHubs,
@@ -123,5 +132,6 @@ export function useHarmony() {
     startActivity,
     executeCommand,
     loadCache,
+    clearCache,
   };
 }
