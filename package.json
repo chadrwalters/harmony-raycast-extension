@@ -51,6 +51,24 @@
       "description": "Enable debug logging",
       "default": false,
       "label": "Debug Mode"
+    },
+    {
+      "name": "defaultView",
+      "type": "dropdown",
+      "required": false,
+      "title": "Default View",
+      "description": "Choose whether to show Activities or Devices as the main view",
+      "default": "activities",
+      "data": [
+        {
+          "title": "Activities",
+          "value": "activities"
+        },
+        {
+          "title": "Devices",
+          "value": "devices"
+        }
+      ]
     }
   ],
   "dependencies": {
