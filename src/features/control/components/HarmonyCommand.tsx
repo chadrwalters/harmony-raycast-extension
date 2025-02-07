@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   List,
   Icon,
@@ -18,6 +18,7 @@ import { ErrorHandler } from "../../../core/logging/errorHandler";
 import { HarmonyManager } from "../../../core/harmony/harmonyClient";
 import { Logger } from "../../../core/logging/logger";
 import { useHarmony } from "../hooks/useHarmony";
+import { useHarmonyContext } from "../context/HarmonyContext";
 
 /**
  * HarmonyCommand Component
@@ -27,61 +28,53 @@ import { useHarmony } from "../hooks/useHarmony";
  */
 export default function HarmonyCommand() {
   const { executeCommand: executeHarmonyCommand } = useHarmony();
+  const { hubs, isLoading, error, refreshHubs } = useHarmonyContext();
   const [state, setState] = useState({
-    hubs: [],
     selectedHub: null,
     activities: [],
     devices: [],
     selectedDevice: null,
     commands: [],
-    isLoading: false,
-    error: null,
     view: "hubs",
   });
 
-  useEffect(() => {
-    loadHubs();
-    return () => {
-      // Cleanup on unmount
-      HarmonyManager.getInstance().disconnect().catch(console.error);
-    };
-  }, []);
-
-  const loadHubs = async () => {
+  const handleRescan = useCallback(async (forceRefresh = false) => {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
-      const manager = HarmonyManager.getInstance();
-
-      // Try to load from cache first
-      const cachedData = await manager.loadCachedHubData();
-      if (cachedData) {
-        Logger.info("Using cached hub data");
-        setState((prev) => ({
-          ...prev,
-          hubs: [cachedData.hub],
-          isLoading: false,
-        }));
-        return;
+      if (forceRefresh) {
+        await HarmonyManager.getInstance().clearCache();
       }
-
-      // If no cache, discover hubs
-      Logger.info("No cache found, discovering hubs");
-      const hubs = await manager.discoverHubs();
-      setState((prev) => ({
-        ...prev,
-        hubs,
-        isLoading: false,
-        view: "hubs",
-      }));
+      await refreshHubs();
     } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        error: error as Error,
-        isLoading: false,
-      }));
-      await ErrorHandler.handleError(error as Error, ErrorCategory.NETWORK);
+      Logger.error("Error rescanning:", error);
+      showToast({
+        style: Toast.Style.Failure,
+        title: "Error Scanning",
+        message: "Failed to scan for Harmony Hubs. Please try again."
+      });
+    } finally {
+      setState((prev) => ({ ...prev, isLoading: false }));
     }
-  };
+  }, [refreshHubs]);
+
+  useEffect(() => {
+    const cleanup = async () => {
+      try {
+        await HarmonyManager.getInstance().disconnect();
+      } catch (error) {
+        Logger.error("Error during cleanup:", error);
+      }
+    };
+
+    // Initial scan
+    refreshHubs().catch(error => {
+      Logger.error("Error during initial scan:", error);
+    });
+
+    return () => {
+      cleanup().catch(console.error);
+    };
+  }, []); // Empty deps
 
   const loadActivities = async (hub: HarmonyHub) => {
     try {
@@ -165,6 +158,29 @@ export default function HarmonyCommand() {
     }
   };
 
+  const handleError = async (error: Error, category: ErrorCategory) => {
+    // Show appropriate error message based on error type
+    const errorMessage = error.message || "Unknown error occurred";
+    let title = "Command Execution Failed";
+    let message = errorMessage;
+
+    if (errorMessage.includes("Not connected")) {
+      title = "Connection Error";
+      message = "Lost connection to hub. Please try selecting the hub again.";
+    } else if (errorMessage.includes("timeout")) {
+      title = "Command Timeout";
+      message = "Command took too long to execute. Please try again.";
+    }
+
+    await showToast({
+      style: Toast.Style.Failure,
+      title: title,
+      message: message,
+    });
+
+    await ErrorHandler.handleError(error, category);
+  };
+
   const executeCommand = async (command: HarmonyCommand) => {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
@@ -186,49 +202,149 @@ export default function HarmonyCommand() {
 
       setState((prev) => ({ ...prev, isLoading: false }));
     } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        error: error as Error,
-        isLoading: false,
-      }));
-
-      // Show appropriate error message based on error type
-      const errorMessage = error.message || "Unknown error occurred";
-      let title = "Command Execution Failed";
-      let message = errorMessage;
-
-      if (errorMessage.includes("Not connected")) {
-        title = "Connection Error";
-        message = "Lost connection to hub. Please try selecting the hub again.";
-      } else if (errorMessage.includes("timeout")) {
-        title = "Command Timeout";
-        message = "Command took too long to execute. Please try again.";
-      }
-
-      await showToast({
-        style: Toast.Style.Failure,
-        title: title,
-        message: message,
-      });
-
-      await ErrorHandler.handleError(error as Error, ErrorCategory.COMMAND_EXECUTION);
+      setState((prev) => ({ ...prev, isLoading: false }));
+      await handleError(error as Error, ErrorCategory.COMMAND_EXECUTION);
     }
   };
 
+  if (isLoading && hubs.length === 0) {
+    return (
+      <List isLoading={true}>
+        <List.EmptyView
+          icon={Icon.Wifi}
+          title="Scanning for Harmony Hubs..."
+          description="Please wait while we search for Harmony Hubs on your network."
+        />
+      </List>
+    );
+  }
+
+  if (hubs.length === 0 && !isLoading) {
+    return (
+      <List>
+        <List.EmptyView
+          icon={Icon.Wifi}
+          title="No Harmony Hubs Found"
+          description="Make sure your Harmony Hub is powered on and connected to the same network as your computer."
+          actions={
+            <ActionPanel>
+              <Action
+                title="Rescan"
+                icon={Icon.ArrowClockwise}
+                onAction={async () => {
+                  Logger.info("Rescan clicked");
+                  await showToast({
+                    style: Toast.Style.Animated,
+                    title: "Scanning for Harmony Hubs",
+                    message: "This may take up to 30 seconds..."
+                  });
+                  await handleRescan(true);
+                }}
+              />
+            </ActionPanel>
+          }
+        />
+      </List>
+    );
+  }
+
   const renderHubs = () => {
-    return state.hubs.map((hub) => (
-      <List.Item
-        key={hub.id}
-        title={hub.name || "Unknown Hub"}
-        subtitle={hub.ip}
-        icon={Icon.Globe}
-        actions={
-          <ActionPanel>
-            <Action title="Select Hub" onAction={() => loadActivities(hub)} />
-          </ActionPanel>
-        }
-      />
-    ));
+    if (state.view === "hubs") {
+      return (
+        <List 
+          isLoading={isLoading} 
+          navigationTitle="Select Harmony Hub"
+          actions={
+            <ActionPanel>
+              <ActionPanel.Section>
+                <Action
+                  title="Clear Cache & Rescan"
+                  icon={Icon.RotateClockwise}
+                  shortcut={{ modifiers: ["cmd"], key: "r" }}
+                  onAction={async () => {
+                    Logger.info("Clear Cache & Rescan clicked");
+                    await showToast({
+                      style: Toast.Style.Animated,
+                      title: "Scanning for Harmony Hubs",
+                      message: "This may take up to 60 seconds..."
+                    });
+                    await handleRescan(true);
+                  }}
+                />
+              </ActionPanel.Section>
+            </ActionPanel>
+          }
+        >
+          {hubs.length === 0 ? (
+            <List.EmptyView
+              icon={Icon.Wifi}
+              title="No Hubs Found"
+              description="Make sure your Harmony Hub is connected to the network"
+            />
+          ) : (
+            hubs.map((hub) => (
+              <List.Item
+                key={hub.id}
+                title={hub.name}
+                subtitle={hub.ip}
+                icon={Icon.Wifi}
+                actions={
+                  <ActionPanel>
+                    <ActionPanel.Section>
+                      <Action 
+                        title="Select Hub" 
+                        icon={Icon.ArrowRight}
+                        onAction={() => loadActivities(hub)} 
+                      />
+                    </ActionPanel.Section>
+                  </ActionPanel>
+                }
+              />
+            ))
+          )}
+        </List>
+      );
+    } else {
+      return (
+        <List
+          isLoading={isLoading}
+          searchBarPlaceholder={getSearchPlaceholder()}
+          navigationTitle={getNavigationTitle()}
+          searchBarAccessory={
+            state.view === "activities" || state.view === "devices" ? (
+              <List.Dropdown
+                tooltip="Switch View"
+                value={state.view}
+                onChange={(newView) => setState((prev) => ({ ...prev, view: newView }))}
+              >
+                <List.Dropdown.Item title="Activities" value="activities" icon={Icon.Star} />
+                <List.Dropdown.Item title="Devices" value="devices" icon={Icon.Tv} />
+              </List.Dropdown>
+            ) : null
+          }
+        >
+          {error ? (
+            <List.Item
+              key="error"
+              title="Error"
+              subtitle={error.message}
+              icon={Icon.ExclamationMark}
+              actions={
+                <ActionPanel>
+                  <Action title="Try Again" onAction={handleRescan} icon={Icon.ArrowClockwise} />
+                </ActionPanel>
+              }
+            />
+          ) : state.view === "activities" ? (
+            renderActivities()
+          ) : state.view === "devices" ? (
+            renderDevices()
+          ) : (
+            renderCommands()
+          )}
+        </List>
+      );
+    }
   };
 
   const renderActivities = () => {
@@ -345,45 +461,5 @@ export default function HarmonyCommand() {
     }
   };
 
-  return (
-    <List
-      isLoading={state.isLoading}
-      searchBarPlaceholder={getSearchPlaceholder()}
-      navigationTitle={getNavigationTitle()}
-      searchBarAccessory={
-        state.view === "activities" || state.view === "devices" ? (
-          <List.Dropdown
-            tooltip="Switch View"
-            value={state.view}
-            onChange={(newView) => setState((prev) => ({ ...prev, view: newView }))}
-          >
-            <List.Dropdown.Item title="Activities" value="activities" icon={Icon.Star} />
-            <List.Dropdown.Item title="Devices" value="devices" icon={Icon.Tv} />
-          </List.Dropdown>
-        ) : null
-      }
-    >
-      {state.error ? (
-        <List.Item
-          key="error"
-          title="Error"
-          subtitle={state.error.message}
-          icon={Icon.ExclamationMark}
-          actions={
-            <ActionPanel>
-              <Action title="Try Again" onAction={loadHubs} icon={Icon.ArrowClockwise} />
-            </ActionPanel>
-          }
-        />
-      ) : state.view === "hubs" ? (
-        renderHubs()
-      ) : state.view === "activities" ? (
-        renderActivities()
-      ) : state.view === "devices" ? (
-        renderDevices()
-      ) : (
-        renderCommands()
-      )}
-    </List>
-  );
+  return renderHubs();
 }

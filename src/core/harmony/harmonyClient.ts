@@ -1,5 +1,6 @@
 // External dependencies
 import { getPreferenceValues } from "@raycast/api";
+import { environment } from "@raycast/api"; // Added environment import
 import { EventEmitter } from "events";
 import { HarmonyClient, getHarmonyClient as getHarmonyClientWs } from "@harmonyhub/client-ws";
 import { Explorer } from "@harmonyhub/discover";
@@ -11,11 +12,14 @@ import { SecureStorage } from "../storage/secure-storage";
 import { SessionManager } from "../session/session-manager";
 import { ToastManager } from "../ui/toast-manager";
 import { measureAsync } from "../utils/performance";
+import { networkInterfaces } from 'os';
 
 const CACHE_KEY = "harmony_hub_data";
-const BASE_PORT = 65000;
-const MAX_PORT_TRIES = 10;
-const DISCOVERY_TIMEOUT = 5000;
+const BASE_PORT = 35000; // Use higher port range
+const MAX_PORT_TRIES = 5; // Try fewer ports
+const DISCOVERY_TIMEOUT = 30000; // 30 seconds per port
+const DISCOVERY_RETRY_DELAY = 1000; // 1 second between retries
+const GRACE_PERIOD = 10000; // 10 seconds after last hub found
 
 // WebSocket states
 const WS_STATES = {
@@ -79,12 +83,17 @@ export class HarmonyManager {
   private discoveryPromise: Promise<HarmonyHub[]> | null = null;
   private currentPort: number = BASE_PORT;
   private discoveredHubs: HarmonyHub[] = [];
+  private hubDataPromise: Promise<CachedHarmonyData | null> | null = null;
+  private lastLoadTime = 0;
+  private readonly LOAD_DEBOUNCE = 100; // Only load once every 100ms
 
   private readonly logger = new Logger();
   private readonly errorHandler = new ErrorHandler();
   private readonly storage = new SecureStorage();
   private readonly sessionManager = new SessionManager();
   private readonly toastManager = new ToastManager();
+
+  private hubFoundCallback?: (hub: HarmonyHub) => void;
 
   private constructor() {}
 
@@ -98,117 +107,183 @@ export class HarmonyManager {
   private async cleanupExplorer(): Promise<void> {
     if (this.explorer) {
       try {
+        this.logger.info("Cleaning up explorer");
         await this.explorer.stop();
-      } catch (error) {
-        this.logger.warn("Error stopping explorer:", error);
-      } finally {
         this.explorer = null;
+      } catch (error) {
+        this.logger.error("Error cleaning up explorer:", error);
       }
     }
   }
 
-  private async _discoverHubs(): Promise<HarmonyHub[]> {
-    try {
-      await this.cleanupExplorer();
-
-      this.logger.info("Starting hub discovery...");
-      
-      for (let i = 0; i < MAX_PORT_TRIES; i++) {
-        const port = this.currentPort + i;
-        this.logger.debug(`Trying port ${port}...`);
-        
-        try {
-          this.explorer = new Explorer(port);
-          
-          const hubs: HarmonyHub[] = [];
-          const timeout = setTimeout(() => {
-            if (hubs.length === 0) {
-              throw new Error("No hubs found");
-            }
-          }, DISCOVERY_TIMEOUT);
-
-          this.explorer!.on("online", (hub) => {
-            // Log the complete hub object to see all available properties
-            this.logger.debug("Raw hub data:", JSON.stringify(hub, null, 2));
-            
-            const fullInfo = hub.fullHubInfo || {};
-            this.logger.info("Found hub:", { 
-              uuid: hub.uuid, 
-              ip: hub.ip, 
-              name: hub.friendlyName,
-              port: fullInfo.port,
-              hubId: fullInfo.hubId,
-              productId: fullInfo.productId,
-              version: fullInfo.current_fw_version,
-              protocols: fullInfo.protocolVersion,
-              remoteId: fullInfo.remoteId,
-            });
-
-            // Extract remoteId from the full hub info
-            const remoteId = fullInfo.remoteId;
-            if (!remoteId) {
-              this.logger.warn("No remoteId found in hub info, skipping hub");
-              return;
-            }
-
-            const harmonyHub: HarmonyHub = {
-              id: hub.uuid,
-              ip: hub.ip,
-              name: hub.friendlyName,
-              remoteId: remoteId,
-              port: fullInfo.port || "5222",
-              hubId: fullInfo.hubId,
-              version: fullInfo.current_fw_version,
-            };
-            
-            // Only add if not already discovered
-            if (!hubs.some(h => h.id === harmonyHub.id)) {
-              hubs.push(harmonyHub);
-            }
-          });
-
-          this.explorer!.on("error", (error: Error) => {
-            clearTimeout(timeout);
-            throw error;
-          });
-
-          this.explorer!.start();
-          await new Promise(resolve => setTimeout(resolve, DISCOVERY_TIMEOUT));
-          await this.explorer!.stop();
-          return hubs;
-        } catch (error) {
-          await this.cleanupExplorer();
-          if (i === MAX_PORT_TRIES - 1) {
-            throw new Error("All ports in use. Please try again later.");
-          }
-          this.logger.warn(`Port ${port} in use, trying next port...`);
-          continue;
-        }
-      }
-      
-      throw new Error("No hubs found after trying all ports");
-    } catch (error) {
-      this.logger.error("Failed to discover hubs:", error);
-      throw error;
-    } finally {
-      await this.cleanupExplorer();
-    }
-  }
-
-  async discoverHubs(): Promise<HarmonyHub[]> {
-    if (this.isDiscovering) {
+  async discoverHubs(onHubFound?: (hub: HarmonyHub) => void): Promise<HarmonyHub[]> {
+    if (this.isDiscovering && this.discoveryPromise) {
       this.logger.info("Discovery already in progress, returning existing promise");
-      return this.discoveryPromise!;
+      return this.discoveryPromise;
     }
+
+    // Ensure any previous explorer is cleaned up
+    await this.cleanupExplorer();
 
     this.isDiscovering = true;
-    this.discoveryPromise = this._discoverHubs()
-      .finally(() => {
+    this.discoveryPromise = new Promise<HarmonyHub[]>(async (resolve, reject) => {
+      try {
+        this.logger.info("Starting hub discovery...");
+        const interfaces = networkInterfaces();
+        this.discoveredHubs = [];
+
+        // Log network interfaces for debugging
+        this.logger.debug("Network interfaces:", JSON.stringify(interfaces, null, 2));
+
+        // Only create one explorer for all interfaces
+        const explorer = new Explorer();
+        this.explorer = explorer;
+
+        explorer.on('online', (hub: any) => {
+          this.logger.info(`Hub found:`, JSON.stringify(hub, null, 2));
+          const hubInfo: HarmonyHub = {
+            id: hub.uuid,
+            ip: hub.ip,
+            name: hub.friendlyName,
+            remoteId: hub.remoteId,
+            hubId: hub.hubId,
+            version: hub.current_fw_version,
+            port: hub.port || "5222",
+          };
+
+          // Only add if not already discovered
+          const isDuplicate = this.discoveredHubs.some(h => h.id === hubInfo.id);
+          if (!isDuplicate) {
+            this.logger.info(`New hub discovered: ${hubInfo.name} (${hubInfo.ip})`);
+            this.discoveredHubs.push(hubInfo);
+            onHubFound?.(hubInfo);
+          } else {
+            this.logger.debug(`Duplicate hub found: ${hubInfo.name} (${hubInfo.ip})`);
+          }
+        });
+
+        explorer.on('error', (error: Error) => {
+          this.logger.error(`Explorer error:`, error);
+        });
+
+        explorer.on('offline', (hub: any) => {
+          this.logger.debug(`Hub went offline:`, hub);
+        });
+
+        try {
+          await explorer.start();
+          this.logger.debug(`Explorer started`);
+
+          // Wait for discovery timeout
+          this.logger.info(`Waiting ${DISCOVERY_TIMEOUT}ms for discovery...`);
+          await new Promise(resolve => setTimeout(resolve, DISCOVERY_TIMEOUT));
+
+          // If we found any hubs, wait a bit longer for more responses
+          if (this.discoveredHubs.length > 0) {
+            this.logger.info(`Found ${this.discoveredHubs.length} hub(s), waiting ${GRACE_PERIOD}ms for more...`);
+            await new Promise(resolve => setTimeout(resolve, GRACE_PERIOD));
+          }
+        } finally {
+          // Clean up explorer
+          this.logger.info("Stopping explorer...");
+          try {
+            await explorer.stop();
+          } catch (error) {
+            this.logger.error("Error stopping explorer:", error);
+          }
+          this.explorer = null;
+        }
+
+        this.logger.info(`Discovery complete. Found ${this.discoveredHubs.length} hub(s)`);
+        resolve(this.discoveredHubs);
+      } catch (error) {
+        this.logger.error("Discovery failed:", error);
+        reject(error);
+      } finally {
         this.isDiscovering = false;
         this.discoveryPromise = null;
-      });
+      }
+    });
 
     return this.discoveryPromise;
+  }
+
+  async loadCachedHubData(forceRefresh = false): Promise<CachedHarmonyData | null> {
+    // Debounce rapid calls
+    const now = Date.now();
+    if (now - this.lastLoadTime < this.LOAD_DEBOUNCE) {
+      if (this.hubDataPromise) {
+        this.logger.debug("Using existing hub data promise (debounced)");
+        return this.hubDataPromise;
+      }
+    }
+    this.lastLoadTime = now;
+    
+    // If force refresh, clear existing promises
+    if (forceRefresh) {
+      this.hubDataPromise = null;
+      this.discoveryPromise = null;
+    }
+    
+    // If we already have a promise for hub data, return it
+    if (this.hubDataPromise) {
+      this.logger.debug("Using existing hub data promise");
+      return this.hubDataPromise;
+    }
+
+    // Create a new promise that will either load from cache or discover
+    this.hubDataPromise = (async () => {
+      try {
+        // First try to load from cache if not forcing refresh
+        if (!forceRefresh) {
+          this.logger.info("Loading cached hub data...");
+          const cached = await this.storage.get(CACHE_KEY);
+          if (cached) {
+            const data = JSON.parse(cached) as CachedHarmonyData;
+            return data;
+          }
+        }
+
+        // If no cache or force refresh, check if discovery is already happening
+        if (this.isDiscovering && this.discoveryPromise) {
+          this.logger.info("Discovery in progress, waiting for it to finish...");
+          const hubs = await this.discoveryPromise;
+          if (hubs.length > 0) {
+            return {
+              hub: hubs[0],
+              activities: [],
+              devices: [],
+              timestamp: new Date().toISOString(),
+            };
+          }
+          return null;
+        }
+
+        // No cache and no discovery, start discovery
+        this.logger.info("Starting new discovery...");
+        const hubs = await this.discoverHubs();
+        if (hubs.length > 0) {
+          const data = {
+            hub: hubs[0],
+            activities: [],
+            devices: [],
+            timestamp: new Date().toISOString(),
+          };
+          // Cache the result
+          await this.saveCachedHubData(data);
+          return data;
+        }
+        return null;
+      } catch (error) {
+        this.logger.error("Failed to load or discover hub data:", error);
+        throw error;
+      } finally {
+        // Clear the promise so future calls will try again
+        this.hubDataPromise = null;
+      }
+    })();
+
+    return this.hubDataPromise;
   }
 
   async connect(hub: HarmonyHub): Promise<void> {
@@ -274,20 +349,21 @@ export class HarmonyManager {
   }
 
   async disconnect(): Promise<void> {
+    if (!this.client) {
+      // No need to log if there's no client
+      return;
+    }
+    
     try {
-      if (this.client) {
-        this.logger.info("Disconnecting from hub");
-        await this.client.end();
-        this.client = null;
-      }
-      this.connectionState = "disconnected";
+      this.logger.info("Disconnecting from hub...");
+      await this.client.end();
       this.logger.info("Successfully disconnected from hub");
     } catch (error) {
-      this.logger.error("Error during disconnect:", error);
-      // Reset state even if there's an error
+      this.logger.error("Error disconnecting from hub:", error);
+      throw error;
+    } finally {
       this.client = null;
       this.connectionState = "disconnected";
-      throw error;
     }
   }
 
@@ -440,72 +516,55 @@ export class HarmonyManager {
           throw new Error('Harmony client not initialized');
         }
 
-        Logger.debug('=== Command Execution Details ===');
-        Logger.debug(`Client state: ${JSON.stringify({
-          connected: this.client.connected,
-          authenticated: this.client.authenticated
-        })}`);
+        // Log client state in development mode
+        if (environment.isDevelopment) {
+          Logger.debug(`Client state: connected=${this.client.connected}, authenticated=${this.client.authenticated}`);
+        }
 
-        // Construct the command payload according to Harmony API requirements
         const commandBody = {
           command: command,
           deviceId: deviceId,
           type: "IRCommand"
         };
 
-        Logger.debug(`Command body: ${JSON.stringify(commandBody, null, 2)}`);
-
         // Send press command
         try {
-          Logger.debug('Sending press command...');
+          Logger.debug(`Executing ${command} on ${device.label} (${deviceId})`);
           await this.client.send("holdAction", commandBody);
-          Logger.debug('Press command sent successfully');
         } catch (pressError) {
-          Logger.error('Press command failed:', pressError);
-          Logger.error('Press command details:', {
-            body: commandBody,
-            error: pressError.message,
-            stack: pressError.stack
+          Logger.error(`Press command failed: ${pressError.message}`, {
+            command,
+            deviceId,
+            error: pressError.message
           });
           throw pressError;
         }
 
         // Wait between press and release
-        const delayMs = 100;
-        Logger.debug(`Waiting ${delayMs}ms between press and release`);
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
         // Send release command
         try {
-          Logger.debug('Sending release command...');
           await this.client.send("holdAction", commandBody);
-          Logger.debug('Release command sent successfully');
+          Logger.info(`Successfully executed ${command} on ${device.label}`);
         } catch (releaseError) {
-          Logger.error('Release command failed:', releaseError);
-          Logger.error('Release command details:', {
-            body: commandBody,
-            error: releaseError.message,
-            stack: releaseError.stack
+          Logger.error(`Release command failed: ${releaseError.message}`, {
+            command,
+            deviceId,
+            error: releaseError.message
           });
           throw releaseError;
         }
-
-        Logger.info(`Successfully executed ${command} command for ${device.label}`);
       } catch (error) {
-        const errorDetails = {
+        const errorContext = {
           command,
           deviceId,
           deviceLabel: device.label,
-          error: error.message,
-          stack: error.stack,
-          clientState: this.client ? {
-            connected: this.client.connected,
-            authenticated: this.client.authenticated
-          } : 'Client not initialized'
+          error: error.message
         };
         
-        Logger.error(`Command execution failed with details:`, errorDetails);
-        throw new Error(`Failed to execute command ${command} for device ${device.label}: ${error.message}`);
+        Logger.error(`Command execution failed`, errorContext);
+        throw new Error(`Failed to execute ${command} for ${device.label}: ${error.message}`);
       }
     } catch (error) {
       Logger.error(`Command execution failed:`, error);
@@ -561,21 +620,6 @@ export class HarmonyManager {
     }
   }
 
-  async loadCachedHubData(): Promise<CachedHarmonyData | null> {
-    try {
-      this.logger.info("Loading cached hub data...");
-      const cached = await this.storage.get(CACHE_KEY);
-      if (cached) {
-        return JSON.parse(cached) as CachedHarmonyData;
-      }
-      this.logger.info("No cache found, discovering hubs");
-      return null;
-    } catch (error) {
-      this.logger.error("Failed to load cached hub data:", error);
-      throw error;
-    }
-  }
-
   async saveCachedHubData(data: CachedHarmonyData): Promise<void> {
     try {
       await this.storage.set(CACHE_KEY, JSON.stringify(data));
@@ -588,10 +632,13 @@ export class HarmonyManager {
   async clearCache(): Promise<void> {
     try {
       this.logger.info("Clearing hub cache...");
-      await this.storage.removeItem(CACHE_KEY);
+      await this.storage.delete(CACHE_KEY);
+      // Also clear promises to force new discovery
+      this.hubDataPromise = null;
+      this.discoveryPromise = null;
       this.logger.info("Hub cache cleared successfully");
     } catch (error) {
-      this.logger.error("Failed to clear hub cache:", error);
+      this.logger.error("Error clearing hub cache:", error);
       throw error;
     }
   }
@@ -602,7 +649,7 @@ export class HarmonyManager {
       const explorer: Explorer = new Explorer();
       const discoveryTimeout: number = 5000;
 
-      explorer.on("online", async (hub: HarmonyHub) => {
+      explorer.on("online", async (hub: any) => {
         this.logger.debug("Raw hub data:", JSON.stringify(hub, null, 2));
         const harmonyHub: HarmonyHub = {
           id: hub.uuid,
