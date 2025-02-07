@@ -408,78 +408,60 @@ export class HarmonyManager {
       this.logger.debug("Calling client.getAvailableCommands()");
       const commands = await this.client.getAvailableCommands();
       
-      // Log the entire raw response for debugging
-      this.logger.debug("=== START RAW COMMANDS RESPONSE ===");
-      this.logger.debug(JSON.stringify(commands, null, 2));
-      this.logger.debug("=== END RAW COMMANDS RESPONSE ===");
+      // Log raw command data for debugging
+      console.log("=== RAW COMMAND DATA ===");
+      if (commands.device) {
+        commands.device.forEach((dev: any) => {
+          console.log(`\nDEVICE: ${dev.label} (${dev.id})`);
+          if (dev.controlGroup) {
+            dev.controlGroup.forEach((group: any) => {
+              if (group.function) {
+                group.function.forEach((fn: any) => {
+                  console.log(`COMMAND: ${fn.label || 'NO LABEL'} | ACTION: ${fn.action}`);
+                });
+              }
+            });
+          }
+        });
+      }
 
       if (!commands || !commands.device) {
         this.logger.warn("No devices returned from hub");
         return [];
       }
 
-      // Log each device's commands in detail
-      this.logger.debug("=== START DEVICE DETAILS ===");
-      commands.device.forEach((device: any) => {
-        this.logger.debug(`\nDevice: ${device.label} (${device.id})`);
-        this.logger.debug(`Raw device data:`, JSON.stringify(device, null, 2));
-        this.logger.debug(`Type: ${device.type}`);
-        this.logger.debug(`DisplayName: ${device.deviceTypeDisplayName}`);
-        if (device.controlGroup) {
-          device.controlGroup.forEach((group: any) => {
-            this.logger.debug(`  Group: ${group.name}`);
-            if (group.function) {
-              group.function.forEach((fn: any) => {
-                try {
-                  const action = JSON.parse(fn.action);
-                  this.logger.debug(`    Command: ${action.command} (Label: ${fn.label || action.command})`);
-                } catch (e) {
-                  this.logger.error(`Failed to parse action for command:`, fn);
-                }
-              });
-            }
-          });
-        }
-      });
-      this.logger.debug("=== END DEVICE DETAILS ===");
-
       const devices = commands.device.map((dev) => {
-        Logger.debug(`Processing device: ${dev.label} (${dev.id})`);
-        
-        const mappedCommands = dev.controlGroup.flatMap((group) => {
-          Logger.debug(`  Processing control group: ${group.name}`);
+        // Flatten all commands from all control groups into a single array
+        const allCommands = dev.controlGroup.flatMap((group) => {
           return (group.function || []).map((fn) => {
             try {
               const action = JSON.parse(fn.action);
-              Logger.debug(`    Mapping command: ${action.command} (${fn.label || action.command}) for device ${dev.id}`);
               return {
                 id: action.command,
                 label: fn.label || action.command,
                 deviceId: dev.id,
-                group: group.name,
               };
             } catch (e) {
-              Logger.error(`Failed to parse action for command:`, fn);
-              return null;
+              // If action parsing fails, try to use raw values
+              return {
+                id: fn.name || fn.action,
+                label: fn.label || fn.name || fn.action,
+                deviceId: dev.id,
+              };
             }
-          }).filter(Boolean); // Remove any null commands
-        });
+          });
+        }).filter(Boolean); // Remove any null/undefined commands
 
-        Logger.debug(`Mapped ${mappedCommands.length} commands for device ${dev.label}`);
+        console.log(`Device ${dev.label} has ${allCommands.length} commands`);
         
         return {
           id: dev.id,
           label: dev.label,
-          type: dev.deviceTypeDisplayName || dev.type,
-          commands: mappedCommands,
+          type: dev.deviceTypeDisplayName || "Default",
+          commands: allCommands,
         };
       });
-      
-      this.logger.debug("=== START TRANSFORMED DEVICES ===");
-      this.logger.debug(JSON.stringify(devices, null, 2));
-      this.logger.debug("=== END TRANSFORMED DEVICES ===");
-      
-      this.logger.info("Found", devices.length, "devices");
+
       return devices;
     } catch (error) {
       this.logger.error("Failed to fetch devices:", error);
@@ -512,24 +494,13 @@ export class HarmonyManager {
 
       Logger.debug(`Found device: ${device.label} (${device.id})`);
 
-      // Special handling for volume commands
-      if (command === "VolumeUp" || command === "VolumeDown" || command === "Mute") {
-        Logger.debug(`Processing volume command: ${command}`);
-        
-        // Verify device supports volume control
-        const volumeCommands = device.commands.filter(c => c.group === "Volume");
-        if (volumeCommands.length === 0) {
-          throw new Error(`Device ${device.label} does not support volume control`);
-        }
-
-        // Verify specific volume command exists
-        const volumeCommand = volumeCommands.find(c => c.id === command);
-        if (!volumeCommand) {
-          throw new Error(`Volume command ${command} not found for device ${device.label}`);
-        }
-
-        Logger.debug(`Volume command found: ${volumeCommand.id} (${volumeCommand.label})`);
+      // Find the command in the device's command list
+      const deviceCommand = device.commands.find(c => c.id === command);
+      if (!deviceCommand) {
+        throw new Error(`Command ${command} not found for device ${device.label}`);
       }
+
+      Logger.debug(`Command found: ${deviceCommand.id} (${deviceCommand.label})`);
 
       try {
         if (!this.client) {

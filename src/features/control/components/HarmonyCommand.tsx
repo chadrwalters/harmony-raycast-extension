@@ -19,6 +19,11 @@ import { useHarmonyContext } from "../context/HarmonyContext";
 
 interface Preferences {
   defaultView: "activities" | "devices";
+  cacheDuration: string;
+  networkTimeout: string;
+  debugMode: boolean;
+  autoRetry: boolean;
+  maxRetries: string;
 }
 
 const DISCOVERY_TIMEOUT = 30000; // 30 seconds
@@ -43,6 +48,25 @@ export default function HarmonyCommand() {
     isLoading: false,
     view: preferences.defaultView,
   });
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const stored = await LocalStorage.getItem<string>(SETTINGS_KEY);
+        if (stored) {
+          const settings = JSON.parse(stored);
+          setLocalState(prev => ({ ...prev, view: settings.defaultView }));
+        }
+      } catch (error) {
+        Logger.error("Failed to load settings:", error);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  useEffect(() => {
+    setLocalState(prev => ({ ...prev, view: preferences.defaultView }));
+  }, [preferences.defaultView]);
 
   // Group commands by their group for better organization
   const getGroupedCommands = (device: HarmonyDevice) => {

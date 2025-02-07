@@ -16,48 +16,15 @@
       "title": "Control Harmony Hub",
       "description": "Control your Harmony Hub devices and activities",
       "mode": "view"
-    },
-    {
-      "name": "settings",
-      "title": "Harmony Settings",
-      "description": "Configure Harmony Hub extension settings",
-      "mode": "view"
     }
   ],
   "preferences": [
-    {
-      "name": "autoConnect",
-      "type": "checkbox",
-      "required": false,
-      "title": "Auto Connect",
-      "description": "Automatically connect to last used hub",
-      "default": true,
-      "label": "Auto Connect"
-    },
-    {
-      "name": "lastHubId",
-      "type": "textfield",
-      "required": false,
-      "title": "Last Hub ID",
-      "description": "ID of the last connected hub",
-      "default": "",
-      "label": "Last Hub ID"
-    },
-    {
-      "name": "debugMode",
-      "type": "checkbox",
-      "required": false,
-      "title": "Debug Mode",
-      "description": "Enable debug logging",
-      "default": false,
-      "label": "Debug Mode"
-    },
     {
       "name": "defaultView",
       "type": "dropdown",
       "required": false,
       "title": "Default View",
-      "description": "Choose whether to show Activities or Devices as the main view",
+      "description": "Choose whether to show Activities or Devices by default",
       "default": "activities",
       "data": [
         {
@@ -69,6 +36,48 @@
           "value": "devices"
         }
       ]
+    },
+    {
+      "name": "cacheDuration",
+      "type": "textfield",
+      "required": false,
+      "title": "Cache Duration",
+      "description": "How long to cache Hub data (in hours)",
+      "default": "24"
+    },
+    {
+      "name": "networkTimeout",
+      "type": "textfield",
+      "required": false,
+      "title": "Network Timeout",
+      "description": "Network request timeout (in milliseconds)",
+      "default": "5000"
+    },
+    {
+      "name": "debugMode",
+      "type": "checkbox",
+      "required": false,
+      "title": "Debug Mode",
+      "description": "Enable debug logging",
+      "default": true,
+      "label": "Enable Debug Mode"
+    },
+    {
+      "name": "autoRetry",
+      "type": "checkbox",
+      "required": false,
+      "title": "Auto Retry",
+      "description": "Automatically retry failed operations",
+      "default": true,
+      "label": "Enable Auto Retry"
+    },
+    {
+      "name": "maxRetries",
+      "type": "textfield",
+      "required": false,
+      "title": "Max Retries",
+      "description": "Maximum number of retry attempts",
+      "default": "3"
     }
   ],
   "dependencies": {
