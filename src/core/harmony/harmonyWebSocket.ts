@@ -13,6 +13,10 @@ interface QueuedMessage {
   timestamp: number;
 }
 
+/**
+ * WebSocket client for Harmony Hub communication.
+ * Handles real-time communication with the Harmony Hub using WebSocket protocol.
+ */
 export class HarmonyWebSocket extends EventEmitter {
   protected ws: WebSocket | null = null;
   private messageQueue: QueuedMessage[] = [];
@@ -25,6 +29,11 @@ export class HarmonyWebSocket extends EventEmitter {
   private connectResolve: (() => void) | null = null;
   private connectReject: ((error: Error) => void) | null = null;
 
+  /**
+   * Creates a new HarmonyWebSocket instance.
+   *
+   * @param url - WebSocket URL
+   */
   constructor(url: string) {
     super();
     this.logger = new Logger();
@@ -33,12 +42,29 @@ export class HarmonyWebSocket extends EventEmitter {
     this.connect();
   }
 
+  /**
+   * Creates a new HarmonyWebSocket instance.
+   *
+   * @param url - WebSocket URL
+   * @returns HarmonyWebSocket instance
+   */
   static createInstance(url: string): HarmonyWebSocket {
     console.log("Creating new HarmonyWebSocket instance with URL:", url);
     return new HarmonyWebSocket(url);
   }
 
-  // WebSocket-like interface
+  /**
+   * Sends a message to the Harmony Hub.
+   *
+   * @param data - Message to send
+   * @returns void
+   * @throws {Error} If send fails
+   *
+   * @example
+   * ```typescript
+   * webSocket.send(JSON.stringify({ command: "PowerOn" }));
+   * ```
+   */
   public send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
     this.logger.debug("Sending data:", data);
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -55,6 +81,18 @@ export class HarmonyWebSocket extends EventEmitter {
     }
   }
 
+  /**
+   * Closes the WebSocket connection.
+   *
+   * @param code - Close code
+   * @param reason - Close reason
+   * @returns void
+   *
+   * @example
+   * ```typescript
+   * webSocket.close();
+   * ```
+   */
   public close(code?: number, reason?: string): void {
     this.logger.info("Closing WebSocket connection");
     if (this.ws) {
@@ -62,6 +100,12 @@ export class HarmonyWebSocket extends EventEmitter {
     }
   }
 
+  /**
+   * Establishes a new WebSocket connection to the Harmony Hub.
+   *
+   * @returns Promise<void>
+   * @throws {Error} If connection fails
+   */
   private connect(): Promise<void> {
     this.logger.info("Starting WebSocket connection to:", this.url);
     
@@ -101,6 +145,9 @@ export class HarmonyWebSocket extends EventEmitter {
     return this.connectPromise;
   }
 
+  /**
+   * Sets up event listeners for the WebSocket connection.
+   */
   private setupListeners() {
     if (!this.ws) return;
 
@@ -138,6 +185,9 @@ export class HarmonyWebSocket extends EventEmitter {
     };
   }
 
+  /**
+   * Handles WebSocket close event.
+   */
   private handleClose() {
     this.isConnected = false;
     if (this.reconnectAttempts < MAX_RECONNECTS) {
@@ -158,11 +208,21 @@ export class HarmonyWebSocket extends EventEmitter {
     }
   }
 
-  private handleError(error: Error) {
+  /**
+   * Handles WebSocket errors.
+   *
+   * @param error - WebSocket error
+   */
+  private handleError(error: Error): void {
     this.logger.error("WebSocket error:", error);
     this.emit('error', error);
   }
 
+  /**
+   * Handles incoming WebSocket messages.
+   *
+   * @param event - Message event
+   */
   private handleMessage(event: MessageEvent) {
     try {
       const message = JSON.parse(event.data);
@@ -185,10 +245,18 @@ export class HarmonyWebSocket extends EventEmitter {
     }
   }
 
+  /**
+   * Generates a unique message ID.
+   *
+   * @returns string Message ID
+   */
   private generateMessageId(): string {
     return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
+  /**
+   * Processes the message queue.
+   */
   private processQueue() {
     const now = Date.now();
     
@@ -225,6 +293,13 @@ export class HarmonyWebSocket extends EventEmitter {
     }
   }
 
+  /**
+   * Waits for the WebSocket connection to be established.
+   *
+   * @param timeout - Timeout in milliseconds
+   * @returns Promise<void>
+   * @throws {Error} If connection fails
+   */
   public async waitForConnection(timeout = CONNECTION_TIMEOUT): Promise<void> {
     if (this.isConnected) return;
 
@@ -245,6 +320,9 @@ export class HarmonyWebSocket extends EventEmitter {
     });
   }
 
+  /**
+   * Disconnects from the Harmony Hub.
+   */
   public disconnect() {
     if (this.ws) {
       this.ws.close();
@@ -254,20 +332,42 @@ export class HarmonyWebSocket extends EventEmitter {
     this.messageQueue = [];
   }
 
+  /**
+   * Checks if the WebSocket connection is currently open.
+   *
+   * @returns boolean True if connected
+   */
   public isOpen(): boolean {
     return this.isConnected && this.ws?.readyState === WebSocket.OPEN;
   }
 
+  /**
+   * Gets the current WebSocket ready state.
+   *
+   * @returns WebSocket.ReadyState
+   */
   public get readyState(): number {
     return this.ws?.readyState ?? WebSocket.CLOSED;
   }
 
+  /**
+   * Adds an event listener to the WebSocket connection.
+   *
+   * @param event - Event type
+   * @param listener - Event listener function
+   */
   public addEventListener(event: string, listener: EventListener): void {
     if (this.ws) {
       this.ws.addEventListener(event, listener);
     }
   }
 
+  /**
+   * Removes an event listener from the WebSocket connection.
+   *
+   * @param event - Event type
+   * @param listener - Event listener function
+   */
   public removeEventListener(event: string, listener: EventListener): void {
     if (this.ws) {
       this.ws.removeEventListener(event, listener);

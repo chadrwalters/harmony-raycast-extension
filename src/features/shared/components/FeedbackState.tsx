@@ -1,13 +1,34 @@
 import { List, Icon, Color } from "@raycast/api";
 
+/**
+ * Props for the FeedbackState component.
+ */
 export interface FeedbackStateProps {
+  /** The title to display */
   title: string;
+  /** Optional description text */
   description?: string;
+  /** The icon to display */
   icon?: Icon;
+  /** The color of the icon */
   color?: Color;
+  /** Optional actions to display */
   actions?: React.ReactNode;
 }
 
+/**
+ * FeedbackState component displays various application states with consistent styling.
+ * Used for showing loading, error, and empty states throughout the application.
+ *
+ * @example
+ * ```tsx
+ * <FeedbackState
+ *   title="No Devices Found"
+ *   description="Please check your network connection"
+ *   icon={Icon.Circle}
+ * />
+ * ```
+ */
 export function FeedbackState({ title, description, icon, color = Color.PrimaryText, actions }: FeedbackStateProps) {
   return (
     <List.EmptyView
@@ -19,6 +40,9 @@ export function FeedbackState({ title, description, icon, color = Color.PrimaryT
   );
 }
 
+/**
+ * Possible loading states for feedback display.
+ */
 export const LoadingStates = {
   DISCOVERING: {
     title: "Discovering Harmony Hubs...",
@@ -47,6 +71,9 @@ export const LoadingStates = {
   },
 };
 
+/**
+ * Possible error states for feedback display.
+ */
 export const ErrorStates = {
   NO_HUBS_FOUND: {
     title: "No Harmony Hubs Found",

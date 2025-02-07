@@ -7,6 +7,8 @@ import {
   showToast,
   Toast,
   getPreferenceValues,
+  LocalStorage,
+  Color
 } from "@raycast/api";
 
 // Types
@@ -17,407 +19,487 @@ import { HarmonyManager } from "../../../core/harmony/harmonyClient";
 import { Logger } from "../../../core/logging/logger";
 import { useHarmonyContext } from "../context/HarmonyContext";
 
+/**
+ * Preferences for the HarmonyCommand component.
+ */
 interface Preferences {
+  /** The default view to display */
   defaultView: "activities" | "devices";
+  /** The cache duration in seconds */
   cacheDuration: string;
+  /** The network timeout in seconds */
   networkTimeout: string;
+  /** Whether to enable debug mode */
   debugMode: boolean;
+  /** Whether to auto-retry failed commands */
   autoRetry: boolean;
+  /** The maximum number of retries */
   maxRetries: string;
 }
 
-const DISCOVERY_TIMEOUT = 30000; // 30 seconds
-const GRACE_PERIOD = 10000; // 10 seconds
+/**
+ * Props for the HarmonyCommand component.
+ */
+interface HarmonyCommandProps {
+  // No props defined for this component
+}
 
 /**
- * HarmonyCommand Component
- * 
- * Main component for controlling Harmony devices and activities.
- * Handles device discovery, connection, and command execution.
+ * HarmonyCommand component is the main component for controlling Harmony devices and activities.
+ * It handles device discovery, connection, and command execution.
+ *
+ * @example
+ * ```tsx
+ * <HarmonyCommand />
+ * ```
  */
-export default function HarmonyCommand() {
-  const { hubs, isLoading, error, refreshHubs } = useHarmonyContext();
-  const [discoveryProgress, setDiscoveryProgress] = useState(0);
+export default function HarmonyCommand({}: HarmonyCommandProps) {
+  // Get preferences
   const preferences = getPreferenceValues<Preferences>();
-  const [localState, setLocalState] = useState({
-    selectedHub: null as HarmonyHub | null,
-    activities: [] as HarmonyActivity[],
-    devices: [] as HarmonyDevice[],
-    selectedDevice: null as HarmonyDevice | null,
-    commands: [] as any[],
-    isLoading: false,
-    view: preferences.defaultView,
+
+  // Get context
+  const { hubs, isLoading, error, refreshHubs } = useHarmonyContext();
+
+  // Local state
+  const [selectedHub, setSelectedHub] = useState<HarmonyHub | null>(null);
+  const [activities, setActivities] = useState<HarmonyActivity[]>([]);
+  const [devices, setDevices] = useState<HarmonyDevice[]>([]);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState<Error | null>(null);
+  const [loadingState, setLoadingState] = useState<LoadingState>({
+    stage: "connecting",
+    progress: 0,
+    message: "Initializing connection..."
   });
 
+  // Load settings and connect to last used hub
   useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const stored = await LocalStorage.getItem<string>(SETTINGS_KEY);
-        if (stored) {
-          const settings = JSON.parse(stored);
-          setLocalState(prev => ({ ...prev, view: settings.defaultView }));
-        }
-      } catch (error) {
-        Logger.error("Failed to load settings:", error);
-      }
-    };
     loadSettings();
   }, []);
 
-  useEffect(() => {
-    setLocalState(prev => ({ ...prev, view: preferences.defaultView }));
-  }, [preferences.defaultView]);
-
-  // Group commands by their group for better organization
-  const getGroupedCommands = (device: HarmonyDevice) => {
-    const groups: { [key: string]: Array<{ id: string; label: string }> } = {};
-    
-    if (!device.commands) {
-      Logger.debug(`No commands found for device ${device.label}`);
-      return groups;
-    }
-
-    Logger.debug(`Grouping ${device.commands.length} commands for device ${device.label}`);
-    
-    device.commands.forEach(command => {
-      const group = command.group || "Other";
-      if (!groups[group]) {
-        groups[group] = [];
-      }
-      groups[group].push({
-        id: command.id,
-        label: command.label
-      });
-      Logger.debug(`Added command ${command.label} to group ${group}`);
-    });
-    
-    return groups;
-  };
-
-  // Send a command to a device
-  const sendCommand = async (deviceId: string, commandId: string) => {
+  // Load saved settings from storage
+  const loadSettings = async () => {
     try {
-      Logger.info(`Sending command ${commandId} to device ${deviceId}`);
-      const manager = HarmonyManager.getInstance();
-      await manager.executeCommand(deviceId, commandId);
+      Logger.info("Loading settings...");
+      const lastHubId = await LocalStorage.getItem("lastHubId");
+      
+      if (lastHubId) {
+        Logger.info(`Found last hub ID: ${lastHubId}`);
+        const hub = hubs.find(h => h.id === lastHubId);
+        if (hub) {
+          Logger.info(`Found matching hub: ${hub.name}`);
+          await connectToHub(hub);
+        } else {
+          Logger.info(`No matching hub found for ID: ${lastHubId}`);
+        }
+      } else {
+        Logger.info("No last hub ID found");
+      }
     } catch (error) {
-      Logger.error("Error sending command:", error);
+      Logger.error("Failed to load settings:", error);
       showToast({
         style: Toast.Style.Failure,
-        title: "Error Sending Command",
+        title: "Failed to load settings",
         message: error instanceof Error ? error.message : "Unknown error"
       });
     }
   };
 
-  // Handle rescan button
-  const handleRescan = useCallback(async (forceRefresh = false) => {
+  // Connect to a hub
+  const connectToHub = async (hub: HarmonyHub) => {
     try {
-      Logger.info("Starting rescan...");
-      setDiscoveryProgress(0);
-      if (forceRefresh) {
-        await HarmonyManager.getInstance().clearCache();
-      }
-      await refreshHubs();
+      Logger.info(`Connecting to hub: ${hub.name} (${hub.ip})`);
+      setIsConnecting(true);
+      setConnectionError(null);
+      setLoadingState({
+        stage: "connecting",
+        progress: 0.25,
+        message: `Connecting to ${hub.name}...`
+      });
+
+      const manager = HarmonyManager.getInstance();
+      await manager.connect(hub);
+      
+      setLoadingState({
+        stage: "loading-activities",
+        progress: 0.5,
+        message: "Loading activities..."
+      });
+      const hubActivities = await manager.getActivities();
+      
+      setLoadingState({
+        stage: "loading-devices",
+        progress: 0.75,
+        message: "Loading devices..."
+      });
+      const hubDevices = await manager.getDevices();
+
+      // Save the last used hub ID
+      await LocalStorage.setItem("lastHubId", hub.id);
+      
+      setSelectedHub(hub);
+      setActivities(hubActivities);
+      setDevices(hubDevices);
+      
+      Logger.info(`Successfully connected to ${hub.name}`);
+      Logger.info(`Found ${hubActivities.length} activities and ${hubDevices.length} devices`);
+
+      setLoadingState({
+        stage: "complete",
+        progress: 1,
+        message: "Ready!"
+      });
+
+      showToast({
+        style: Toast.Style.Success,
+        title: "Connected",
+        message: `Connected to ${hub.name}`
+      });
     } catch (error) {
-      Logger.error("Error rescanning:", error);
+      Logger.error("Failed to connect to hub:", error);
+      setConnectionError(error as Error);
+      setLoadingState({
+        stage: "complete",
+        progress: 1,
+        message: "Connection failed"
+      });
       showToast({
         style: Toast.Style.Failure,
-        title: "Error Scanning",
-        message: "Failed to scan for hubs. Please try again."
+        title: "Connection Failed",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  // Validate and filter commands to ensure they have required properties
+  const getValidCommands = (device: HarmonyDevice) => {
+    if (!device.commands || !Array.isArray(device.commands)) {
+      Logger.warn(`No valid commands found for device ${device.label}`);
+      return [];
+    }
+    return device.commands.filter(cmd => {
+      if (!cmd || !cmd.name || !cmd.label) {
+        Logger.warn(`Invalid command found for device ${device.label}:`, cmd);
+        return false;
+      }
+      return true;
+    });
+  };
+
+  // Generate a unique key for a command
+  const getCommandKey = (deviceId: string, command: { name: string; label: string }) => {
+    return `${deviceId}-${command.name || 'unknown'}-${command.label || 'unlabeled'}`;
+  };
+
+  // Execute a command on a device
+  const executeCommand = async (device: HarmonyDevice, command: string) => {
+    try {
+      Logger.info(`Executing command '${command}' on device: ${device.label} (${device.id})`);
+      const manager = HarmonyManager.getInstance();
+      
+      // Verify the command exists
+      const validCommand = device.commands.find(cmd => cmd.name === command && cmd.label);
+      if (!validCommand) {
+        throw new Error(`Command '${command}' not found or invalid for device ${device.label}`);
+      }
+      
+      Logger.debug("Device commands:", device.commands);
+      Logger.info(`Found command: ${validCommand.label} (${validCommand.name})`);
+      await manager.executeCommand(device.id, command);
+      
+      showToast({
+        style: Toast.Style.Success,
+        title: "Command Executed",
+        message: `${validCommand.label} on ${device.label}`
+      });
+    } catch (error) {
+      Logger.error("Failed to execute command:", error);
+      showToast({
+        style: Toast.Style.Failure,
+        title: "Command Failed",
+        message: error instanceof Error ? error.message : "Unknown error"
       });
     }
-  }, [refreshHubs]);
+  };
 
   // Start an activity
   const startActivity = async (activity: HarmonyActivity) => {
     try {
-      Logger.info("Starting activity:", activity);
+      Logger.info(`Starting activity: ${activity.label}`);
       const manager = HarmonyManager.getInstance();
       await manager.startActivity(activity.id);
+      
       showToast({
         style: Toast.Style.Success,
         title: "Activity Started",
-        message: `Successfully started ${activity.label}`
+        message: `Started ${activity.label}`
       });
     } catch (error) {
-      Logger.error("Error starting activity:", error);
+      Logger.error(`Failed to start activity: ${activity.label}`, error);
       showToast({
         style: Toast.Style.Failure,
-        title: "Error Starting Activity",
-        message: "Failed to start activity. Please try again."
+        title: "Activity Failed",
+        message: error instanceof Error ? error.message : "Unknown error"
       });
     }
   };
 
-  // Load activities and devices for a hub
-  const loadActivities = async (hub: HarmonyHub) => {
-    try {
-      Logger.info("Loading activities for hub:", hub);
-      setLocalState(prev => ({ ...prev, isLoading: true }));
-
-      const manager = HarmonyManager.getInstance();
-      await manager.connect(hub);
-
-      const cachedData = await manager.loadCachedHubData();
-      if (cachedData && cachedData.hub.id === hub.id) {
-        Logger.info("Using cached hub data");
-        setLocalState(prev => ({
-          ...prev,
-          selectedHub: hub,
-          activities: cachedData.activities,
-          devices: cachedData.devices,
-          isLoading: false,
-        }));
-        return;
-      }
-
-      Logger.info("Loading fresh hub data");
-      const [activities, devices] = await Promise.all([
-        manager.getActivities(),
-        manager.getDevices(),
-      ]);
-
-      Logger.info("Got activities:", activities);
-      Logger.info("Got devices:", devices);
-
-      setLocalState(prev => ({
-        ...prev,
-        selectedHub: hub,
-        activities,
-        devices,
-        isLoading: false,
-      }));
-    } catch (error) {
-      Logger.error("Error loading activities:", error);
-      showToast({
-        style: Toast.Style.Failure,
-        title: "Error Loading Activities",
-        message: "Failed to load activities. Please try again."
-      });
-      setLocalState(prev => ({ 
-        ...prev, 
-        selectedHub: null,
-        isLoading: false 
-      }));
-    }
-  };
-
-  // Toggle between activities and devices view
-  const toggleView = () => {
-    setLocalState(prev => ({
-      ...prev,
-      view: prev.view === "activities" ? "devices" : "activities"
-    }));
-  };
-
-  // Effect to update discovery progress
-  useEffect(() => {
-    if (isLoading) {
-      const startTime = Date.now();
-      const interval = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min((elapsed / DISCOVERY_TIMEOUT) * 100, 100);
-        setDiscoveryProgress(progress);
-        
-        if (elapsed >= DISCOVERY_TIMEOUT + GRACE_PERIOD) {
-          clearInterval(interval);
-        }
-      }, 100);
-
-      return () => clearInterval(interval);
+  const getCommandIcon = (label: string) => {
+    if (label.toLowerCase().includes("power")) {
+      return Icon.Power;
+    } else if (label.toLowerCase().includes("volume")) {
+      return Icon.Volume;
     } else {
-      setDiscoveryProgress(100);
+      return Icon.Terminal;
     }
-  }, [isLoading]);
+  };
 
-  // Render the list of hubs, activities, or devices
+  if (isLoading) {
+    return (
+      <List isLoading={true}>
+        <List.EmptyView
+          icon={{ source: Icon.CircleProgress, tintColor: Color.Blue }}
+          title="Discovering Harmony Hubs"
+          description="Scanning your network for Harmony Hubs..."
+        />
+      </List>
+    );
+  }
+
+  if (isConnecting) {
+    return (
+      <List>
+        <List.EmptyView
+          icon={{ source: Icon.CircleProgress, tintColor: Color.Blue }}
+          title={loadingState.message}
+          description={`${Math.round(loadingState.progress * 100)}% Complete`}
+        />
+      </List>
+    );
+  }
+
+  if (error || connectionError) {
+    return (
+      <List>
+        <List.EmptyView
+          icon={{ source: Icon.ExclamationMark, tintColor: Color.Red }}
+          title="Error"
+          description={error?.message || connectionError?.message || "Unknown error occurred"}
+          actions={
+            <ActionPanel>
+              <Action
+                title="Retry"
+                icon={Icon.ArrowClockwise}
+                onAction={() => error ? refreshHubs() : selectedHub && connectToHub(selectedHub)}
+              />
+            </ActionPanel>
+          }
+        />
+      </List>
+    );
+  }
+
+  // Render no hubs found state
+  if (hubs.length === 0) {
+    return (
+      <List>
+        <List.EmptyView
+          icon={Icon.QuestionMark}
+          title="No Hubs Found"
+          description="Make sure your Harmony Hub is powered on and connected to your network"
+          actions={
+            <ActionPanel>
+              <Action
+                title="Refresh"
+                onAction={refreshHubs}
+                icon={Icon.ArrowClockwise}
+              />
+            </ActionPanel>
+          }
+        />
+      </List>
+    );
+  }
+
+  // Render hub selection
+  if (!selectedHub) {
+    return (
+      <List>
+        {hubs.map((hub) => (
+          <List.Item
+            key={hub.id}
+            title={hub.name}
+            subtitle={hub.ip}
+            icon={Icon.Wifi}
+            accessories={[{ text: hub.version || "Unknown Version" }]}
+            actions={
+              <ActionPanel>
+                <Action
+                  title="Connect"
+                  onAction={() => connectToHub(hub)}
+                  icon={Icon.Link}
+                />
+              </ActionPanel>
+            }
+          />
+        ))}
+      </List>
+    );
+  }
+
+  // Render the main list
   return (
     <List
-      isLoading={isLoading || localState.isLoading}
-      searchBarPlaceholder={
-        !localState.selectedHub 
-          ? isLoading 
-            ? "Searching for Harmony Hubs..." 
-            : "Search Hubs..."
-          : localState.view === "activities"
-            ? "Search Activities..."
-            : "Search Devices..."
-      }
-      navigationTitle={
-        !localState.selectedHub
-          ? "Harmony Hubs"
-          : localState.view === "activities"
-            ? "Activities"
-            : "Devices"
-      }
+      navigationTitle={`Harmony Control${selectedHub ? ` - ${selectedHub.name}` : ''}`}
+      searchBarPlaceholder="Search commands..."
     >
-      {!localState.selectedHub ? (
-        // Show hubs
-        hubs.length === 0 ? (
-          <List.EmptyView
-            icon={Icon.WifiDisabled}
-            title={`Searching for Harmony Hubs (${Math.round(discoveryProgress)}%)`}
-            description={
-              isLoading
-                ? "This may take up to 40 seconds..."
-                : "Make sure your Harmony Hub is powered on and connected to the same network"
-            }
-            actions={
-              <ActionPanel>
-                <Action
-                  title="Rescan"
-                  icon={Icon.ArrowClockwise}
-                  onAction={() => handleRescan(true)}
-                />
-              </ActionPanel>
-            }
-          />
-        ) : (
-          hubs.map((hub) => (
+      {selectedHub ? (
+        <>
+          {devices.map((device) => (
             <List.Item
-              key={hub.id}
-              icon={Icon.Wifi}
-              title={hub.name || "Unknown Hub"}
-              subtitle={`IP: ${hub.ip}`}
-              accessories={[{ text: hub.version ? `v${hub.version}` : undefined }]}
+              key={device.id}
+              icon={Icon.TV}
+              title={device.label}
+              subtitle={`${device.commands.length} commands available`}
               actions={
                 <ActionPanel>
-                  <Action
-                    title="Select Hub"
-                    onAction={() => loadActivities(hub)}
-                  />
-                  <Action
-                    title="Rescan"
-                    icon={Icon.ArrowClockwise}
-                    onAction={() => handleRescan(true)}
-                  />
-                </ActionPanel>
-              }
-            />
-          ))
-        )
-      ) : localState.view === "activities" ? (
-        // Show activities
-        localState.activities.length === 0 ? (
-          <List.EmptyView
-            icon={Icon.ExclamationMark}
-            title="No Activities Found"
-            description="No activities are configured for this hub"
-            actions={
-              <ActionPanel>
-                <Action
-                  title="Switch to Devices"
-                  icon={Icon.Tv}
-                  onAction={toggleView}
-                />
-                <Action
-                  title="Back to Hubs"
-                  icon={Icon.ArrowLeft}
-                  onAction={() => setLocalState(prev => ({ ...prev, selectedHub: null, activities: [], devices: [] }))}
-                />
-              </ActionPanel>
-            }
-          />
-        ) : (
-          localState.activities.map((activity) => (
-            <List.Item
-              key={activity.id}
-              icon={Icon.PlayCircle}
-              title={activity.label}
-              subtitle={activity.type}
-              actions={
-                <ActionPanel>
-                  <Action
-                    title="Start Activity"
-                    onAction={() => startActivity(activity)}
-                  />
-                  <Action
-                    title="Switch to Devices"
-                    icon={Icon.Tv}
-                    onAction={toggleView}
-                  />
-                  <Action
-                    title="Back to Hubs"
-                    icon={Icon.ArrowLeft}
-                    onAction={() => setLocalState(prev => ({ ...prev, selectedHub: null, activities: [], devices: [] }))}
-                  />
-                </ActionPanel>
-              }
-            />
-          ))
-        )
-      ) : (
-        // Show devices
-        localState.devices.length === 0 ? (
-          <List.EmptyView
-            icon={Icon.ExclamationMark}
-            title="No Devices Found"
-            description="No devices are configured for this hub"
-            actions={
-              <ActionPanel>
-                <Action
-                  title="Switch to Activities"
-                  icon={Icon.PlayCircle}
-                  onAction={toggleView}
-                />
-                <Action
-                  title="Back to Hubs"
-                  icon={Icon.ArrowLeft}
-                  onAction={() => setLocalState(prev => ({ ...prev, selectedHub: null, activities: [], devices: [] }))}
-                />
-              </ActionPanel>
-            }
-          />
-        ) : (
-          localState.devices.map((device) => {
-            const commandGroups = getGroupedCommands(device);
-            const hasCommands = Object.keys(commandGroups).length > 0;
-
-            if (!hasCommands) {
-              Logger.debug(`No commands found for device ${device.label}`);
-              return null;
-            }
-
-            return (
-              <List.Item
-                key={device.id}
-                icon={device.type === "StereoReceiver" ? Icon.Speaker : Icon.Tv}
-                title={device.label}
-                subtitle={device.type}
-                actions={
-                  <ActionPanel>
-                    {Object.entries(commandGroups).map(([group, commands]) => (
-                      <ActionPanel.Submenu
-                        key={group}
-                        title={group}
-                      >
-                        {commands.map(command => (
-                          <Action
-                            key={command.id}
-                            title={command.label}
-                            onAction={() => sendCommand(device.id, command.id)}
-                          />
-                        ))}
-                      </ActionPanel.Submenu>
-                    ))}
-                    <Action
+                  <ActionPanel.Section>
+                    <Action.Push
+                      title="View Commands"
+                      icon={Icon.List}
+                      shortcut={{ modifiers: ["cmd"], key: "return" }}
+                      target={
+                        <List navigationTitle={`Commands - ${device.label}`}>
+                          {getValidCommands(device).map((command) => (
+                            <List.Item
+                              key={getCommandKey(device.id, command)}
+                              icon={getCommandIcon(command.label)}
+                              title={command.label}
+                              subtitle={command.name}
+                              actions={
+                                <ActionPanel>
+                                  <ActionPanel.Section>
+                                    <Action
+                                      title="Execute Command"
+                                      onAction={() => executeCommand(device, command.name)}
+                                      icon={Icon.Terminal}
+                                      shortcut={{ modifiers: ["cmd"], key: "return" }}
+                                    />
+                                  </ActionPanel.Section>
+                                </ActionPanel>
+                              }
+                            />
+                          ))}
+                        </List>
+                      }
+                    />
+                    <Action.Push
                       title="Switch to Activities"
-                      icon={Icon.PlayCircle}
-                      onAction={toggleView}
+                      icon={Icon.Switch}
+                      shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
+                      target={
+                        <List navigationTitle="Activities">
+                          {activities.map((activity) => (
+                            <List.Item
+                              key={activity.id}
+                              icon={Icon.PlayCircle}
+                              title={activity.label}
+                              actions={
+                                <ActionPanel>
+                                  <Action
+                                    title="Start Activity"
+                                    onAction={() => startActivity(activity)}
+                                    icon={Icon.Play}
+                                    shortcut={{ modifiers: ["cmd"], key: "return" }}
+                                  />
+                                  <Action.Push
+                                    title="Back to Devices"
+                                    icon={Icon.ArrowLeft}
+                                    shortcut={{ modifiers: ["cmd"], key: "b" }}
+                                    target={
+                                      <List navigationTitle="Devices">
+                                        {devices.map((device) => (
+                                          <List.Item
+                                            key={device.id}
+                                            icon={Icon.TV}
+                                            title={device.label}
+                                            subtitle={`${device.commands.length} commands available`}
+                                            actions={
+                                              <ActionPanel>
+                                                <Action.Push
+                                                  title="View Commands"
+                                                  icon={Icon.List}
+                                                  shortcut={{ modifiers: ["cmd"], key: "return" }}
+                                                  target={
+                                                    <List navigationTitle={`Commands - ${device.label}`}>
+                                                      {getValidCommands(device).map((command) => (
+                                                        <List.Item
+                                                          key={getCommandKey(device.id, command)}
+                                                          icon={getCommandIcon(command.label)}
+                                                          title={command.label}
+                                                          subtitle={command.name}
+                                                          actions={
+                                                            <ActionPanel>
+                                                              <Action
+                                                                title="Execute Command"
+                                                                onAction={() => executeCommand(device, command.name)}
+                                                                icon={Icon.Terminal}
+                                                                shortcut={{ modifiers: ["cmd"], key: "return" }}
+                                                              />
+                                                            </ActionPanel>
+                                                          }
+                                                        />
+                                                      ))}
+                                                    </List>
+                                                  }
+                                                />
+                                              </ActionPanel>
+                                            }
+                                          />
+                                        ))}
+                                      </List>
+                                    }
+                                  />
+                                </ActionPanel>
+                              }
+                            />
+                          ))}
+                        </List>
+                      }
                     />
-                    <Action
-                      title="Back to Hubs"
-                      icon={Icon.ArrowLeft}
-                      onAction={() => setLocalState(prev => ({ ...prev, selectedHub: null, activities: [], devices: [] }))}
-                    />
-                  </ActionPanel>
-                }
-              />
-            );
-          })
-        )
+                  </ActionPanel.Section>
+                </ActionPanel>
+              }
+            />
+          ))}
+        </>
+      ) : (
+        hubs.map((hub) => (
+          <List.Item
+            key={hub.id}
+            icon={Icon.Globe}
+            title={hub.name}
+            subtitle={`${hub.ip}:${hub.port}`}
+            actions={
+              <ActionPanel>
+                <Action
+                  key={`connect-${hub.id}`}
+                  title="Connect"
+                  onAction={() => connectToHub(hub)}
+                />
+              </ActionPanel>
+            }
+          />
+        ))
       )}
     </List>
   );
 }
+
+type LoadingState = {
+  stage: "connecting" | "loading-activities" | "loading-devices" | "complete";
+  progress: number;
+  message: string;
+};

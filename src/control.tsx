@@ -1,3 +1,4 @@
+import { LocalStorage } from "@raycast/api";
 import HarmonyCommand from "./features/control/components/HarmonyCommand";
 import { HarmonyProvider } from "./features/control/context/HarmonyContext";
 

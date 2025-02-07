@@ -9,5 +9,9 @@ raycast-env.d.ts
 .swiftpm
 compiled_raycast_swift
 
+# Windsurf files
+.windsurfrules
+global_rules.md
+
 # misc
 .DS_Store

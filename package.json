@@ -38,6 +38,14 @@
       ]
     },
     {
+      "name": "commandHoldTime",
+      "type": "textfield",
+      "required": false,
+      "title": "Command Hold Time",
+      "description": "Time in milliseconds to hold a command before releasing (default: 100)",
+      "default": "100"
+    },
+    {
       "name": "cacheDuration",
       "type": "textfield",
       "required": false,

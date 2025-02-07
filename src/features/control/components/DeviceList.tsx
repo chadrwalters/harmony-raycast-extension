@@ -12,19 +12,34 @@ import { ToastManager } from "../../../core/ui/toast-manager";
 // Components
 import { FeedbackState, ErrorStates } from "../../shared/components/FeedbackState";
 
-// Component types
+/**
+ * Props for the DeviceList component.
+ */
 interface DeviceListProps {
+  /** List of Harmony devices to display */
   devices: HarmonyDevice[];
+  /** Callback when a device command is selected */
+  onCommandSelect: (device: HarmonyDevice, command: HarmonyCommand) => void;
+  /** Optional loading state indicator */
+  isLoading?: boolean;
+  /** Optional error message to display */
+  error?: string;
 }
 
 /**
- * DeviceList Component
- * 
- * Displays a list of Harmony devices and their available commands.
- * Handles device selection and command execution.
+ * DeviceList component displays a list of Harmony devices and their available commands.
+ * It provides a user interface for selecting and executing device commands.
+ *
+ * @example
+ * ```tsx
+ * <DeviceList
+ *   devices={devices}
+ *   onCommandSelect={(device, command) => executeCommand(device, command)}
+ *   isLoading={false}
+ * />
+ * ```
  */
-export default function DeviceList({ devices }: DeviceListProps) {
-  const [isLoading, setIsLoading] = useState(false);
+export default function DeviceList({ devices, onCommandSelect, isLoading, error }: DeviceListProps) {
   const [searchText, setSearchText] = useState("");
   const { executeCommand } = useHarmony();
   const { pop } = useNavigation();
@@ -41,7 +56,7 @@ export default function DeviceList({ devices }: DeviceListProps) {
   }, [devices, searchText]);
 
   const handleCommandExecution = async (device: HarmonyDevice, command: HarmonyCommand) => {
-    setIsLoading(true);
+    onCommandSelect(device, command);
     try {
       await executeCommand(device, command);
       await ToastManager.success({
@@ -53,8 +68,6 @@ export default function DeviceList({ devices }: DeviceListProps) {
         title: "Command Failed",
         message: error instanceof Error ? error.message : "Unknown error",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
