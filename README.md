@@ -1,6 +1,15 @@
 # Harmony Control
 
-Integrates Logitech Harmony with Raycast
+Control your Logitech Harmony Hub devices directly from Raycast.
+
+## Features
+
+- 🔍 Automatic hub discovery on local network
+- 📱 Control all your Harmony devices
+- 🎯 Execute device commands with keyboard shortcuts
+- 🚀 Fast command execution with local caching
+- 🔄 Automatic reconnection and error recovery
+- 🔒 Secure credential storage
 
 ## Project Structure
 
@@ -25,38 +34,90 @@ src/
     │   └── types/         # Feature-specific types
     └── shared/            # Shared components
         └── components/    # Common UI components
-
 ```
 
 ## Key Components
 
-- **Control Command**: Main interface for controlling Harmony devices and activities
-- **Settings Command**: Configuration interface for the extension
-- **Harmony Manager**: Core service for interacting with Harmony Hub
-- **Session Manager**: Handles authentication and session state
-- **Error Handler**: Centralized error handling and logging
+### Core Services
+- **Harmony Manager**: Core service for hub interaction and command execution
+- **Session Manager**: Handles connection state and persistence
+- **Storage Manager**: Secure data storage and caching
+- **Error Handler**: Centralized error handling and recovery
+
+### Features
+- **Device Control**: Manage and control Harmony devices
+- **Activity Control**: Start and manage Harmony activities
+- **Command Execution**: Execute device commands with feedback
+- **Cache Management**: Efficient data caching for better performance
 
 ## Development
 
 ### Prerequisites
-- Node.js
+- Node.js 16 or later
 - Raycast extension development environment
-- Logitech Harmony Hub
+- Logitech Harmony Hub on local network
 
-### Building
+### Installation
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Build the extension:
+   ```bash
+   ray build
+   ```
+
+### Development Mode
+Test the extension within Raycast:
 ```bash
-ray build
+ray dev
 ```
 
 ### Testing
-Test the extension within Raycast by running:
+Run the test suite:
 ```bash
-ray dev
+npm test
 ```
 
 ## Contributing
 
 1. Follow the established directory structure
-2. Place new features in the appropriate feature directory
+2. Place new features in appropriate feature directories
 3. Use shared components for common UI elements
 4. Maintain type safety throughout the codebase
+5. Add proper error handling
+6. Include tests for new functionality
+7. Update documentation
+
+## Keyboard Shortcuts
+
+- `⏎` Execute command/view commands
+- `⌘ ⏎` Execute command
+- `⌘ ⇧ A` Switch to Activities
+- `⌘ B` Back to Devices
+
+## Performance
+
+- Local caching of hub data
+- 24-hour cache validity
+- Automatic cache invalidation
+- Lazy command loading
+- Efficient command filtering
+
+## Security
+
+- Local network communication only
+- Secure credential storage
+- Input validation and sanitization
+- Error message sanitization
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Acknowledgments
+
+- `@harmonyhub/client-ws` - Harmony Hub WebSocket client
+- `@harmonyhub/discover` - Harmony Hub discovery
+- Raycast team for the excellent extension API

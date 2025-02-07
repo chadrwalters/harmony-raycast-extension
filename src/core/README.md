@@ -5,33 +5,96 @@ The core module contains foundational services and utilities that power the Harm
 ## Directory Structure
 
 ### `/harmony`
-Contains all Harmony Hub integration logic, including device discovery, command execution, and state management.
+Contains all Harmony Hub integration logic:
+- Hub discovery and connection management
+- Command execution and validation
+- Activity and device state management
+- Local data caching with 24-hour validity
+- Automatic cache invalidation and refresh
 
 ### `/logging`
-Centralized logging and error handling services for consistent error reporting and debugging.
+Centralized logging and error handling:
+- Typed error categories
+- Contextual error messages
+- Development logging
+- Error sanitization
 
 ### `/network`
-Network-related utilities, including retry logic and connection management.
+Network-related utilities:
+- Connection management
+- Retry logic with backoff
+- WebSocket communication
+- Network status monitoring
 
 ### `/session`
-Session management and state persistence functionality.
+Session management:
+- Connection state persistence
+- User preferences
+- Cache state tracking
+- Session cleanup
 
 ### `/storage`
-Secure storage implementation for sensitive data like hub credentials.
+Secure storage implementation:
+- Credential management
+- Local data caching
+- Cache invalidation
+- Data encryption
 
 ### `/types`
-Core type definitions used across the application.
+Core type definitions:
+- Harmony Hub types
+- Command interfaces
+- Error categories
+- State definitions
 
 ### `/ui`
-Framework-agnostic UI utilities like toast notifications.
+Framework-agnostic UI utilities:
+- Toast notifications
+- Loading states
+- Error messages
+- Status indicators
 
 ### `/utils`
-General utility functions for performance monitoring and validation.
+General utility functions:
+- Performance monitoring
+- Data validation
+- Type guards
+- Helper functions
 
 ## Best Practices
 
-1. Keep core logic framework-agnostic
-2. Implement proper error handling
-3. Use TypeScript for type safety
-4. Document public APIs with JSDoc
-5. Write unit tests for core functionality
+1. Core Logic
+   - Keep business logic framework-agnostic
+   - Implement proper error handling
+   - Use TypeScript for type safety
+   - Follow SOLID principles
+
+2. Error Handling
+   - Use typed error categories
+   - Provide context in error messages
+   - Implement retry strategies
+   - Log appropriately
+
+3. Performance
+   - Implement efficient caching
+   - Use lazy loading
+   - Optimize data structures
+   - Clean up resources
+
+4. Security
+   - Secure credential storage
+   - Validate all inputs
+   - Sanitize error messages
+   - Follow security best practices
+
+5. Documentation
+   - Document public APIs
+   - Include usage examples
+   - Document type definitions
+   - Keep documentation current
+
+6. Testing
+   - Write unit tests
+   - Test error scenarios
+   - Validate cache behavior
+   - Mock external services

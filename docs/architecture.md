@@ -6,138 +6,141 @@ This extension enables Raycast users to control their Logitech Harmony Hub devic
 ## Core Dependencies
 - `@harmonyhub/client-ws` (ISC License) - WebSocket client for Harmony Hub communication
 - `@harmonyhub/discover` (ISC License) - Hub discovery on local network
-- `@xstate/react` & `xstate` - State machine for robust connection management
 - `@raycast/api` - Raycast extension API
 
 ## Architecture Components
 
-### 1. State Management
-The extension uses XState to manage the complex state of Harmony Hub connections:
+### 1. Core Services
 
-```mermaid
-stateDiagram-v2
-    [*] --> Idle
-    Idle --> Discovering: DISCOVER
-    Discovering --> Connecting: HUB_FOUND
-    Discovering --> Error: DISCOVERY_ERROR
-    Connecting --> FetchingActivities: CONNECTED
-    Connecting --> Error: CONNECTION_ERROR
-    FetchingActivities --> Connected: SUCCESS
-    FetchingActivities --> Error: FETCH_ERROR
-    Connected --> Error: ERROR
-    Connected --> Connected: UPDATE_ACTIVITIES
-    Error --> Discovering: DISCOVER
-```
+#### HarmonyManager (`src/core/harmony/harmonyClient.ts`)
+- Singleton service for Harmony Hub interaction
+- Handles device discovery and connection
+- Manages command execution and state
+- Implements caching for improved performance
 
-### 2. Core Components
+#### Storage Services
+- `SecureStorage`: Secure data persistence
+- `SessionManager`: Session state management
+- `ToastManager`: User notifications
 
-#### Discovery Module (`src/utils/explorer.ts`)
-- Handles Harmony Hub discovery on local network
-- Uses `@harmonyhub/discover` for device detection
-- Manages port allocation and cleanup
+### 2. Features
 
-#### Harmony Machine (`src/lib/harmonyMachine.ts`)
-- XState machine defining connection states
-- Manages transitions between states
-- Handles error recovery and reconnection
+#### Control Feature (`src/features/control`)
+- Main feature for device control
+- React components for UI
+- Custom hooks for state management
+- TypeScript interfaces for type safety
 
-#### React Components
-- `ActivityList`: Displays and manages activities
-- `DeviceList`: Shows available devices
-- `DeviceCommandList`: Lists device commands
-- `ConnectionStatus`: Shows current connection state
+#### Shared Components (`src/features/shared`)
+- Reusable UI components
+- Error boundaries
+- Loading states
+- Feedback components
 
-#### React Hooks
-- `useHarmony`: Main hook for Harmony operations
-- `useHarmonyMachine`: State management hook
+### 3. State Management
 
-### 3. Communication Protocol
+#### Local Storage
+- Hub connection details
+- Device and activity cache
+- User preferences
 
-#### WebSocket Communication
-The extension uses WebSocket for bidirectional communication with the Harmony Hub:
+#### React State
+- Current device state
+- UI interaction state
+- Error handling state
 
-1. **Discovery Phase**
-   - UDP broadcast to find hubs
-   - Hub responds with IP and identity
+### 4. Caching System
 
-2. **Connection Phase**
-   - WebSocket connection established
-   - Authentication with hub ID
+#### Hub Data Cache
+- Activities and devices cached
+- 24-hour cache validity
+- Automatic cache invalidation
+- Cache refresh on demand
 
-3. **Operation Phase**
-   - Activities and devices fetched
-   - Commands sent to hub
-   - Status updates received
+#### Performance Optimizations
+- Lazy command loading
+- Command validation and filtering
+- Efficient data structures
+- Memory management
 
-### 4. Error Handling
+### 5. Error Handling
 
-The extension implements robust error handling:
-- Connection retries with backoff
-- Automatic reconnection on failure
-- User-friendly error messages
-- Detailed logging in development
+The extension implements comprehensive error handling:
+- Typed error categories
+- Contextual error messages
+- Automatic retry logic
+- User-friendly notifications
 
-### 5. Performance Considerations
+### 6. Communication Flow
 
-- Lazy loading of device commands
-- Cached state management
-- Efficient port allocation
-- Memory leak prevention
-- Cleanup on unmount
+#### Device Discovery
+1. Network scan for hubs
+2. Hub validation
+3. Connection establishment
+
+#### Command Execution
+1. Command validation
+2. Device state check
+3. Command dispatch
+4. Status feedback
+
+### 7. Security Considerations
+
+- Secure credential storage
+- Local network only
+- Input validation
+- Error sanitization
 
 ## Development Guidelines
 
-1. **Code Organization**
-   - Components in `src/components`
-   - Hooks in `src/hooks`
-   - Types in `src/types`
-   - Utilities in `src/utils`
+### 1. Code Organization
+- Core services in `src/core`
+- Features in `src/features`
+- Shared components in `src/features/shared`
+- Types in respective directories
 
-2. **State Management**
-   - Use XState for complex state
-   - React state for UI
-   - Cached state for persistence
+### 2. State Management
+- Use React hooks for UI state
+- Implement proper cleanup
+- Handle edge cases
+- Cache invalidation
 
-3. **Error Handling**
-   - Always catch and log errors
-   - Provide user feedback
-   - Implement recovery strategies
+### 3. Error Handling
+- Use ErrorCategory enum
+- Implement retry logic
+- Show user feedback
+- Log appropriately
 
-4. **Testing**
-   - Unit tests for utilities
-   - Integration tests for state
-   - E2E tests for commands
+### 4. Performance
+- Use caching where appropriate
+- Implement lazy loading
+- Optimize re-renders
+- Clean up resources
 
-## Security
+### 5. Testing
+- Unit test core functionality
+- Test error scenarios
+- Validate cache behavior
+- Mock external services
 
-1. **Network Security**
-   - Local network only
-   - No sensitive data stored
-   - Secure WebSocket connection
+## Future Considerations
 
-2. **Error Messages**
-   - No sensitive info in logs
-   - Sanitized user messages
-   - Development-only detailed logs
+1. **Cache Enhancement**
+   - Configurable cache duration
+   - Partial cache updates
+   - Cache status indicators
 
-## Future Improvements
+2. **Performance**
+   - Command batching
+   - Connection pooling
+   - State compression
 
-1. **Features**
-   - Multiple hub support
-   - Custom activity creation
-   - Command sequences
-   - Favorites management
+3. **User Experience**
+   - Custom command sequences
+   - Activity templates
+   - Quick actions
 
-2. **Technical**
-   - Better type safety
-   - More test coverage
-   - Performance optimizations
-   - Better error recovery
-
-## License and Attribution
-
-Both `@harmonyhub/client-ws` and `@harmonyhub/discover` are used under the ISC license, which allows:
-- Commercial use
-- Modification
-- Distribution
-- Private use
+4. **Reliability**
+   - Connection health checks
+   - Automatic recovery
+   - Offline support
