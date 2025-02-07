@@ -5,6 +5,7 @@ export enum ErrorCategory {
   NETWORK = "network",
   VALIDATION = "validation",
   AUTHENTICATION = "authentication",
+  CACHE_OPERATION = "cache_operation",
   UNKNOWN = "unknown",
 }
 
@@ -32,6 +33,10 @@ export class ErrorHandler {
     await ToastManager.error("Validation Error", error.message);
   }
 
+  static async handleCacheError(error: Error): Promise<void> {
+    await ToastManager.error("Cache Error", `Failed to perform cache operation: ${error.message}`);
+  }
+
   static async handleError(error: Error | string, category?: ErrorCategory): Promise<void> {
     const errorMessage = error instanceof Error ? error.message : error;
     console.error(`[${category}] Error:`, errorMessage);
@@ -47,6 +52,10 @@ export class ErrorHandler {
 
       case ErrorCategory.VALIDATION:
         await this.handleValidationError(error instanceof Error ? error : new Error(errorMessage));
+        break;
+
+      case ErrorCategory.CACHE_OPERATION:
+        await this.handleCacheError(error instanceof Error ? error : new Error(errorMessage));
         break;
 
       default:

@@ -44,14 +44,14 @@ export function useHarmony() {
   const discoverHubs = useCallback(async () => {
     try {
       await measureAsync("discoverHubs", async () => {
-        // Discovery implementation
-        const mockHubs: HarmonyHub[] = [
-          { id: "1", friendlyName: "Living Room", ip: "192.168.1.100" },
-          { id: "2", friendlyName: "Bedroom", ip: "192.168.1.101" },
-        ];
-        setState((prev) => ({ ...prev, hubs: mockHubs }));
+        Logger.info("Starting hub discovery...");
+        const manager = HarmonyManager.getInstance();
+        const hubs = await manager.discoverHubs();
+        Logger.info(`Found ${hubs.length} hub(s):`, hubs);
+        setState((prev) => ({ ...prev, hubs }));
       });
     } catch (error) {
+      Logger.error("Hub discovery failed:", error);
       await ErrorHandler.handleError(error as Error, ErrorCategory.NETWORK);
     }
   }, []);
@@ -131,11 +131,25 @@ export function useHarmony() {
     }
   }, []);
 
+  const clearCache = useCallback(async () => {
+    try {
+      Logger.info("Clearing Harmony Hub cache...");
+      const manager = HarmonyManager.getInstance();
+      await manager.clearCache();
+      Logger.info("Cache cleared successfully");
+    } catch (error) {
+      Logger.error("Failed to clear cache:", error);
+      await ErrorHandler.handleError(error as Error, ErrorCategory.CACHE_OPERATION);
+      throw error; // Re-throw to allow UI to show error
+    }
+  }, []);
+
   return {
     state,
     discoverHubs,
     connectToHub,
     startActivity,
     executeCommand,
+    clearCache,
   };
 }

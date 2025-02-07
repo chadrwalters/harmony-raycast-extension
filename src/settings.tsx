@@ -1,6 +1,6 @@
 import { Form, ActionPanel, Action, showToast, Toast, LocalStorage } from "@raycast/api";
 import { useEffect, useState } from "react";
-import { useHarmony } from "./hooks/useHarmony";
+import { Logger } from "./core/logging/logger";
 
 interface Settings {
   cacheDuration: string;
@@ -13,15 +13,17 @@ interface Settings {
 const DEFAULT_SETTINGS: Settings = {
   cacheDuration: "24",
   networkTimeout: "5000",
-  debugMode: false,
+  debugMode: true,
   autoRetry: true,
   maxRetries: "3",
 };
 
+const SETTINGS_KEY = "harmony_settings";
+const logger = new Logger();
+
 export default function Command() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
-  const { clearCache } = useHarmony();
 
   useEffect(() => {
     loadSettings();
@@ -29,11 +31,12 @@ export default function Command() {
 
   const loadSettings = async () => {
     try {
-      const stored = await LocalStorage.getItem<string>("harmony_settings");
+      const stored = await LocalStorage.getItem<string>(SETTINGS_KEY);
       if (stored) {
         setSettings(JSON.parse(stored));
       }
     } catch (error) {
+      logger.error("Failed to load settings:", error);
       await showToast({
         style: Toast.Style.Failure,
         title: "Failed to Load Settings",
@@ -46,14 +49,16 @@ export default function Command() {
 
   const handleSubmit = async (values: Settings) => {
     try {
-      await LocalStorage.setItem("harmony_settings", JSON.stringify(values));
+      await LocalStorage.setItem(SETTINGS_KEY, JSON.stringify(values));
       setSettings(values);
+      logger.info("Settings saved successfully");
       await showToast({
         style: Toast.Style.Success,
         title: "Settings Saved",
         message: "Restart the extension for changes to take effect",
       });
     } catch (error) {
+      logger.error("Failed to save settings:", error);
       await showToast({
         style: Toast.Style.Failure,
         title: "Failed to Save Settings",
@@ -64,13 +69,22 @@ export default function Command() {
 
   const handleClearCache = async () => {
     try {
-      await clearCache();
+      // Clear hub cache
+      const harmonyManager = HarmonyManager.getInstance();
+      await harmonyManager.clearCache();
+      
+      // Clear settings
+      await LocalStorage.removeItem(SETTINGS_KEY);
+      setSettings(DEFAULT_SETTINGS);
+      
+      logger.info("Cache and settings cleared successfully");
       await showToast({
         style: Toast.Style.Success,
         title: "Cache Cleared",
-        message: "All cached data has been removed",
+        message: "All cached data and settings have been reset to defaults",
       });
     } catch (error) {
+      logger.error("Failed to clear cache:", error);
       await showToast({
         style: Toast.Style.Failure,
         title: "Failed to Clear Cache",
@@ -86,7 +100,7 @@ export default function Command() {
         <ActionPanel>
           <Action.SubmitForm title="Save Settings" onSubmit={handleSubmit} />
           <Action
-            title="Clear Cache"
+            title="Clear Cache & Reset Settings"
             style={Action.Style.Destructive}
             shortcut={{ modifiers: ["cmd"], key: "r" }}
             onAction={handleClearCache}

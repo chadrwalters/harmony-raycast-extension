@@ -42,6 +42,15 @@
       "description": "ID of the last connected hub",
       "default": "",
       "label": "Last Hub ID"
+    },
+    {
+      "name": "debugMode",
+      "type": "checkbox",
+      "required": false,
+      "title": "Debug Mode",
+      "description": "Enable debug logging",
+      "default": false,
+      "label": "Debug Mode"
     }
   ],
   "dependencies": {

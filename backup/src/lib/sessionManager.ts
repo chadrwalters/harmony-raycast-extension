@@ -7,10 +7,13 @@ interface Session {
   lastActivity: number;
 }
 
+const CACHE_KEYS = {
+  HUB_CACHE: "harmony_hub_cache",
+  SESSION_CACHE: "harmony_session",
+  DATA_CACHE: "harmony_cache",
+};
+
 export class SessionManager {
-  private static readonly SESSION_KEY = "harmony_session";
-  private static readonly CACHE_KEY = "harmony_cache";
-  private static readonly HUB_CACHE_KEY = "harmony_hub_cache";
   private static readonly SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
   private static readonly ACTIVITY_THRESHOLD = 30 * 60 * 1000; // 30 minutes
 
@@ -21,12 +24,12 @@ export class SessionManager {
       lastActivity: Date.now(),
     };
 
-    await LocalStorage.setItem(this.SESSION_KEY, JSON.stringify(session));
+    await LocalStorage.setItem(CACHE_KEYS.SESSION_CACHE, JSON.stringify(session));
   }
 
   static async getSession(): Promise<Session | null> {
     try {
-      const stored = await LocalStorage.getItem(this.SESSION_KEY);
+      const stored = await LocalStorage.getItem(CACHE_KEYS.SESSION_CACHE);
       if (!stored || typeof stored !== "string") {
         return null;
       }
@@ -48,7 +51,7 @@ export class SessionManager {
 
       // Update last activity
       session.lastActivity = now;
-      await LocalStorage.setItem(this.SESSION_KEY, JSON.stringify(session));
+      await LocalStorage.setItem(CACHE_KEYS.SESSION_CACHE, JSON.stringify(session));
 
       return session;
     } catch (error) {
@@ -58,13 +61,14 @@ export class SessionManager {
   }
 
   static async clearSession(): Promise<void> {
-    await LocalStorage.removeItem(this.SESSION_KEY);
+    await LocalStorage.removeItem(CACHE_KEYS.SESSION_CACHE);
   }
 
   static async clearCache(): Promise<void> {
     await Promise.all([
-      LocalStorage.removeItem(this.CACHE_KEY),
-      LocalStorage.removeItem(this.HUB_CACHE_KEY),
+      LocalStorage.removeItem(CACHE_KEYS.HUB_CACHE),
+      LocalStorage.removeItem(CACHE_KEYS.SESSION_CACHE),
+      LocalStorage.removeItem(CACHE_KEYS.DATA_CACHE),
     ]);
     ToastManager.success("Cache cleared successfully");
   }

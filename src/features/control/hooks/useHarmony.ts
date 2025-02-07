@@ -35,6 +35,19 @@ export function useHarmony() {
       await measureAsync("discoverHubs", async () => {
         Logger.info("=== Starting hub discovery ===");
         const manager = HarmonyManager.getInstance();
+        
+        // Try to load from cache first
+        const cachedData = await manager.loadCachedHubData();
+        if (cachedData) {
+          Logger.info("Using cached hub data");
+          setState((prev) => ({
+            ...prev,
+            hubs: [cachedData.hub],
+          }));
+          return;
+        }
+
+        // If no cache, do discovery
         const hubs = await manager.discoverHubs();
         setState((prev) => ({ ...prev, hubs }));
         Logger.info("=== Hub discovery finished ===");

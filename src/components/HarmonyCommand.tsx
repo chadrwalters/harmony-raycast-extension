@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { List, Icon, Action, ActionPanel, showToast, Toast, open } from "@raycast/api";
+import { Action, ActionPanel, Icon, List, Toast, showToast } from "@raycast/api";
 import { ErrorHandler } from "../lib/errorHandler";
 import { HarmonyHub, HarmonyActivity, HarmonyDevice, HarmonyCommand } from "../types/harmony";
 import { ErrorCategory } from "../types/error";
@@ -44,21 +44,14 @@ export default function HarmonyCommand() {
       setState((prev) => ({ ...prev, isLoading: true }));
       const manager = HarmonyManager.getInstance();
 
-      // Try to load from cache first
-      const cachedData = await manager.loadCachedHubData();
-      if (cachedData) {
-        Logger.info("Using cached hub data");
-        setState((prev) => ({
-          ...prev,
-          hubs: [cachedData.hub],
-          isLoading: false,
-        }));
-        return;
-      }
-
-      // If no cache, discover hubs
-      Logger.info("No cache found, discovering hubs");
+      // Clear cache and disconnect any existing connections
+      await manager.clearCache();
+      await manager.disconnect();
+      
+      Logger.info("Starting fresh hub discovery...");
       const hubs = await manager.discoverHubs();
+      Logger.info(`Found ${hubs.length} hub(s):`, hubs);
+      
       setState((prev) => ({
         ...prev,
         hubs,
@@ -66,6 +59,7 @@ export default function HarmonyCommand() {
         view: "hubs",
       }));
     } catch (error) {
+      Logger.error("Failed to load hubs:", error);
       setState((prev) => ({
         ...prev,
         error: error as Error,
@@ -234,8 +228,43 @@ export default function HarmonyCommand() {
   }
 
   if (state.view === "hubs") {
+    Logger.info("Rendering hub list view");
+    Logger.info("Current state:", {
+      isLoading: state.isLoading,
+      hubCount: state.hubs.length,
+      hubs: state.hubs,
+      view: state.view
+    });
+    
     return (
-      <List>
+      <List 
+        isLoading={state.isLoading} 
+        navigationTitle="Select Harmony Hub"
+        searchBarAccessory={
+          <List.Dropdown
+            tooltip="Actions"
+            storeValue={true}
+            onChange={(id) => {
+              if (id === "clear-cache") {
+                const manager = HarmonyManager.getInstance();
+                manager.clearCache().then(() => {
+                  loadHubs();
+                  showToast({
+                    style: Toast.Style.Success,
+                    title: "Cache cleared and hubs rescanned",
+                  });
+                });
+              }
+            }}
+          >
+            <List.Dropdown.Item 
+              title="Clear Cache & Rescan" 
+              value="clear-cache" 
+              icon={Icon.RotateClockwise}
+            />
+          </List.Dropdown>
+        }
+      >
         {state.hubs.length === 0 ? (
           <List.EmptyView
             icon={Icon.Wifi}
@@ -251,7 +280,11 @@ export default function HarmonyCommand() {
               icon={Icon.Wifi}
               actions={
                 <ActionPanel>
-                  <Action title="Select Hub" onAction={() => loadActivities(hub)} icon={Icon.ArrowRight} />
+                  <Action 
+                    title="Select Hub" 
+                    icon={Icon.ArrowRight}
+                    onAction={() => loadActivities(hub)} 
+                  />
                 </ActionPanel>
               }
             />

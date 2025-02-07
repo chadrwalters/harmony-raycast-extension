@@ -1,6 +1,20 @@
 import { environment } from "@raycast/api";
+import { getPreferenceValues } from "@raycast/api";
+
+interface Preferences {
+  debugMode: boolean;
+}
 
 export class Logger {
+  private static getDebugMode(): boolean {
+    try {
+      const prefs = getPreferenceValues<Preferences>();
+      return prefs.debugMode || environment.isDevelopment;
+    } catch (error) {
+      return environment.isDevelopment;
+    }
+  }
+
   private static formatMessage(level: string, args: unknown[]): string {
     const timestamp = new Date().toISOString().substring(11, 23); // HH:mm:ss.SSS
     const messages = args.map(arg => {
@@ -36,8 +50,7 @@ export class Logger {
   }
 
   static debug(...args: unknown[]): void {
-    if (environment.isDevelopment) {
-      // Changed from console.debug to console.log for better visibility
+    if (this.getDebugMode()) {
       console.log(this.formatMessage('DEBUG', args));
     }
   }
