@@ -126,11 +126,12 @@ export class HarmonyManager {
     await this.cleanupExplorer();
 
     this.isDiscovering = true;
+    this.discoveredHubs = [];
+    
     this.discoveryPromise = new Promise<HarmonyHub[]>(async (resolve, reject) => {
       try {
         this.logger.info("Starting hub discovery...");
         const interfaces = networkInterfaces();
-        this.discoveredHubs = [];
 
         // Log network interfaces for debugging
         this.logger.debug("Network interfaces:", JSON.stringify(interfaces, null, 2));
@@ -156,7 +157,15 @@ export class HarmonyManager {
           if (!isDuplicate) {
             this.logger.info(`New hub discovered: ${hubInfo.name} (${hubInfo.ip})`);
             this.discoveredHubs.push(hubInfo);
-            onHubFound?.(hubInfo);
+            
+            // Call the callback synchronously
+            if (onHubFound) {
+              try {
+                onHubFound(hubInfo);
+              } catch (error) {
+                this.logger.error("Error in onHubFound callback:", error);
+              }
+            }
           } else {
             this.logger.debug(`Duplicate hub found: ${hubInfo.name} (${hubInfo.ip})`);
           }
@@ -188,14 +197,14 @@ export class HarmonyManager {
           this.logger.info("Stopping explorer...");
           try {
             await explorer.stop();
+            this.explorer = null;
           } catch (error) {
             this.logger.error("Error stopping explorer:", error);
           }
-          this.explorer = null;
         }
 
         this.logger.info(`Discovery complete. Found ${this.discoveredHubs.length} hub(s)`);
-        resolve(this.discoveredHubs);
+        resolve([...this.discoveredHubs]); // Return a copy
       } catch (error) {
         this.logger.error("Discovery failed:", error);
         reject(error);
@@ -421,7 +430,12 @@ export class HarmonyManager {
             this.logger.debug(`  Group: ${group.name}`);
             if (group.function) {
               group.function.forEach((fn: any) => {
-                this.logger.debug(`    Command: ${fn.name} (Label: ${fn.label || fn.name})`);
+                try {
+                  const action = JSON.parse(fn.action);
+                  this.logger.debug(`    Command: ${action.command} (Label: ${fn.label || action.command})`);
+                } catch (e) {
+                  this.logger.error(`Failed to parse action for command:`, fn);
+                }
               });
             }
           });
@@ -434,15 +448,21 @@ export class HarmonyManager {
         
         const mappedCommands = dev.controlGroup.flatMap((group) => {
           Logger.debug(`  Processing control group: ${group.name}`);
-          return group.function.map((fn) => {
-            Logger.debug(`    Mapping command: ${fn.name} (${fn.label || fn.name}) for device ${dev.id}`);
-            return {
-              id: fn.name,
-              label: fn.label || fn.name,
-              deviceId: dev.id,
-              group: group.name, // Add group name for better context
-            };
-          });
+          return (group.function || []).map((fn) => {
+            try {
+              const action = JSON.parse(fn.action);
+              Logger.debug(`    Mapping command: ${action.command} (${fn.label || action.command}) for device ${dev.id}`);
+              return {
+                id: action.command,
+                label: fn.label || action.command,
+                deviceId: dev.id,
+                group: group.name,
+              };
+            } catch (e) {
+              Logger.error(`Failed to parse action for command:`, fn);
+              return null;
+            }
+          }).filter(Boolean); // Remove any null commands
         });
 
         Logger.debug(`Mapped ${mappedCommands.length} commands for device ${dev.label}`);
@@ -450,7 +470,7 @@ export class HarmonyManager {
         return {
           id: dev.id,
           label: dev.label,
-          type: dev.type,
+          type: dev.deviceTypeDisplayName || dev.type,
           commands: mappedCommands,
         };
       });
@@ -632,14 +652,37 @@ export class HarmonyManager {
   async clearCache(): Promise<void> {
     try {
       this.logger.info("Clearing hub cache...");
-      await this.storage.delete(CACHE_KEY);
-      // Also clear promises to force new discovery
+      
+      // Check if cache exists first
+      const existingCache = await this.storage.get(CACHE_KEY);
+      if (!existingCache) {
+        this.logger.info("No cache found to clear");
+        return;
+      }
+
+      // Remove the cache
+      await this.storage.remove(CACHE_KEY);
+      this.logger.info("Hub cache deleted successfully");
+
+      // Clear any active client connection
+      if (this.client) {
+        this.logger.info("Disconnecting active client...");
+        await this.disconnect();
+      }
+
+      // Clear promises to force new discovery
       this.hubDataPromise = null;
       this.discoveryPromise = null;
-      this.logger.info("Hub cache cleared successfully");
+      this.discoveredHubs = [];
+      this.isDiscovering = false;
+
+      // Clean up explorer if active
+      await this.cleanupExplorer();
+
+      this.logger.info("Cache cleared and state reset successfully");
     } catch (error) {
       this.logger.error("Error clearing hub cache:", error);
-      throw error;
+      throw new Error(error instanceof Error ? error.message : "Failed to clear cache");
     }
   }
 

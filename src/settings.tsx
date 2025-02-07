@@ -69,10 +69,14 @@ export default function Command() {
 
   const handleClearCache = async () => {
     try {
-      // Clear hub cache
-      const harmonyManager = HarmonyManager.getInstance();
-      await harmonyManager.clearCache();
+      setIsLoading(true);
       
+      // Show progress toast
+      await showToast({
+        style: Toast.Style.Animated,
+        title: "Clearing Cache...",
+      });
+
       // Clear settings
       await LocalStorage.removeItem(SETTINGS_KEY);
       setSettings(DEFAULT_SETTINGS);
@@ -88,8 +92,10 @@ export default function Command() {
       await showToast({
         style: Toast.Style.Failure,
         title: "Failed to Clear Cache",
-        message: String(error),
+        message: error instanceof Error ? error.message : String(error),
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 

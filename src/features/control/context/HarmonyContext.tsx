@@ -1,9 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { showToast, Toast } from "@raycast/api";
 import { HarmonyManager } from "../../../core/harmony/harmonyClient";
 import { Logger } from "../../../core/logging/logger";
 import { ErrorHandler, ErrorCategory } from "../../../core/logging/errorHandler";
 import type { HarmonyHub, HarmonyActivity, HarmonyDevice } from "../types/harmony";
+
+const DISCOVERY_TIMEOUT = 30000; // 30 seconds
+const GRACE_PERIOD = 10000; // 10 seconds
 
 interface HarmonyContextType {
   hubs: HarmonyHub[];
@@ -31,62 +34,115 @@ export function HarmonyProvider({ children }: { children: React.ReactNode }) {
     isLoading: true,
     error: null,
   });
+  
+  // Use a ref to track the latest state for the callback
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   const refreshHubs = useCallback(async () => {
     try {
-      setState(prev => ({ ...prev, isLoading: true, error: null }));
+      Logger.info("Starting hub refresh...");
+      
+      // Reset state at start of refresh
+      Logger.info("Resetting state...");
+      setState({
+        hubs: [],
+        isLoading: true,
+        error: null,
+      });
       
       // First try to load from cache
       const hubData = await HarmonyManager.getInstance().loadCachedHubData();
       if (hubData?.hub) {
-        setState(prev => ({
-          ...prev,
-          hubs: [hubData.hub],
-          isLoading: false,
-        }));
+        Logger.info("Using cached hub data:", hubData.hub);
+        setState(prev => {
+          Logger.info("Setting cached hub state. Previous state:", prev);
+          return {
+            hubs: [hubData.hub],
+            isLoading: false,
+            error: null,
+          };
+        });
         return;
       }
 
       // If no cached data, start discovery
       const manager = HarmonyManager.getInstance();
       
-      // Clear hubs before starting new discovery
-      setState(prev => ({ ...prev, hubs: [] }));
+      Logger.info("Starting hub discovery with callback...");
       
+      // Start discovery and collect hubs
       await manager.discoverHubs((hub) => {
-        // Update state as hubs are found
-        setState(prev => ({
-          ...prev,
-          hubs: [...prev.hubs.filter(h => h.id !== hub.id), hub],
-        }));
+        Logger.info("Hub found callback triggered for:", hub.name);
+        
+        // Update state with new hub while keeping isLoading true
+        setState(currentState => {
+          Logger.info("Current state in callback:", JSON.stringify(currentState));
+          const existingHubs = currentState.hubs.filter(h => h.id !== hub.id);
+          const newHubs = [...existingHubs, hub];
+          Logger.info(`Updating state: ${existingHubs.length} existing, ${newHubs.length} total`);
+          
+          const newState = {
+            ...currentState,
+            hubs: newHubs,
+          };
+          Logger.info("New state will be:", JSON.stringify(newState));
+          return newState;
+        });
       });
 
-      // Keep isLoading true during discovery
-      await new Promise(resolve => setTimeout(resolve, 5000)); // DISCOVERY_TIMEOUT is not defined, replaced with 5000
-
-      setState(prev => ({
-        ...prev,
-        isLoading: false,
-      }));
+      Logger.info("Discovery complete, setting final state...");
+      
+      // Discovery is complete, set final state
+      setState(currentState => {
+        Logger.info("Setting final state. Current state:", JSON.stringify(currentState));
+        const finalState = {
+          ...currentState,
+          isLoading: false,
+          error: null,
+        };
+        Logger.info("Final state will be:", JSON.stringify(finalState));
+        return finalState;
+      });
+      
+      Logger.info("Hub refresh complete");
     } catch (error) {
       Logger.error("Error refreshing hubs:", error);
-      setState(prev => ({
-        ...prev,
-        error: error as Error,
-        isLoading: false,
-      }));
+      setState(prev => {
+        Logger.info("Setting error state. Previous state:", JSON.stringify(prev));
+        return {
+          hubs: [],
+          error: error as Error,
+          isLoading: false,
+        };
+      });
+      
+      showToast({
+        style: Toast.Style.Failure,
+        title: "Error Scanning",
+        message: "Failed to scan for Harmony Hubs. Please try again."
+      });
+      
+      ErrorHandler.handleError(error as Error, ErrorCategory.NETWORK);
     }
-  }, []); // No dependencies needed
+  }, []);
 
   // Only refresh on mount
   useEffect(() => {
+    Logger.info("HarmonyProvider mounted, starting initial refresh");
     refreshHubs();
-  }, []);  // Empty deps, we don't want to trigger on refreshHubs changes
+    
+    return () => {
+      // Cleanup
+      HarmonyManager.getInstance().cleanupExplorer().catch(Logger.error);
+    };
+  }, []);
 
-  const value = useMemo(() => ({
+  // Force value to be recreated whenever state changes
+  const value = {
     ...state,
     refreshHubs,
-  }), [state, refreshHubs]);
+  };
 
   return (
     <HarmonyContext.Provider value={value}>
