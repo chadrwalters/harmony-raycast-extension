@@ -1,13 +1,13 @@
 import WebSocket from "ws";
 import { Logger } from "../logger";
 import { HarmonyError, ErrorCategory } from "../../types/errors";
-import { HarmonyHubInfo, HarmonyDevice, HarmonyActivity, HarmonyCommand } from "../../types/harmony";
+import { HarmonyHub, HarmonyDevice, HarmonyActivity, HarmonyCommand } from "../../types/harmony";
 import {
   WebSocketConnectionStatus,
   WebSocketMessageType,
   WebSocketResponse,
   WebSocketEventHandler,
-  WebSocketErrorHandler,
+  WebSocketErrorHandler as WebSocketErrorHandlerType,
   WebSocketMessageUnion,
   ActivityPayload,
   CommandPayload,
@@ -49,7 +49,7 @@ export class HarmonyWebSocket {
   private messageQueue: QueuedMessage[] = [];
   private status: WebSocketConnectionStatus = WebSocketConnectionStatus.DISCONNECTED;
   private eventHandler?: WebSocketEventHandler;
-  private errorHandler?: WebSocketErrorHandler;
+  private errorHandler?: WebSocketErrorHandlerType;
   private reconnectAttempts = 0;
   private pingInterval?: NodeJS.Timeout;
   private messageTimeouts: Map<string, NodeJS.Timeout> = new Map();
@@ -66,7 +66,7 @@ export class HarmonyWebSocket {
     devices: [],
   };
 
-  constructor(private readonly hubInfo: HarmonyHubInfo) {
+  constructor(private readonly hubInfo: HarmonyHub) {
     Logger.debug("HarmonyWebSocket constructor called for hub:", hubInfo.name);
   }
 
@@ -332,7 +332,7 @@ export class HarmonyWebSocket {
   /**
    * Set error handler for WebSocket errors
    */
-  setErrorHandler(handler: WebSocketErrorHandler): void {
+  setErrorHandler(handler: WebSocketErrorHandlerType): void {
     this.errorHandler = handler;
   }
 

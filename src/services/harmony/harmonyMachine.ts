@@ -3,7 +3,7 @@
  * @module
  */
 
-import { assign, createMachine } from "xstate";
+import { createMachine } from "xstate";
 import { HarmonyHub, HarmonyDevice, HarmonyActivity } from "../../types/harmony";
 
 /**
@@ -20,34 +20,28 @@ interface HarmonyContext {
 /**
  * Events that can trigger state transitions.
  */
-enum HarmonyEvent {
-  /** Start connection */
-  START_CONNECTION = "START_CONNECTION",
-  /** Hub discovered */
-  HUB_DISCOVERED = "HUB_DISCOVERED",
-  /** Error occurred */
-  ERROR = "ERROR",
-  /** Reset state */
-  RESET = "RESET",
-}
+const START_CONNECTION = "START_CONNECTION";
+const HUB_DISCOVERED = "HUB_DISCOVERED";
+const ERROR = "ERROR";
+const RESET = "RESET";
 
 type HarmonyStartConnectionEvent = {
-  type: HarmonyEvent.START_CONNECTION;
+  type: typeof START_CONNECTION;
   hub: HarmonyHub;
 };
 
 type HarmonyHubDiscoveredEvent = {
-  type: HarmonyEvent.HUB_DISCOVERED;
+  type: typeof HUB_DISCOVERED;
   hub: HarmonyHub;
 };
 
 type HarmonyErrorEvent = {
-  type: HarmonyEvent.ERROR;
+  type: typeof ERROR;
   error: Error;
 };
 
 type HarmonyResetEvent = {
-  type: HarmonyEvent.RESET;
+  type: typeof RESET;
 };
 
 type HarmonyEvents = HarmonyStartConnectionEvent | HarmonyHubDiscoveredEvent | HarmonyErrorEvent | HarmonyResetEvent;
@@ -61,45 +55,23 @@ const initialContext: HarmonyContext = {
 };
 
 export const harmonyMachine = createMachine({
-  types: {} as {
-    context: HarmonyContext;
-    events: HarmonyEvents;
-  },
   id: "harmony",
   initial: "idle",
   context: initialContext,
   states: {
     idle: {
       on: {
-        [HarmonyEvent.START_CONNECTION]: {
-          target: "connecting",
-          actions: assign({
-            selectedHub: (_, event) => event.hub,
-          }),
-        },
+        [START_CONNECTION]: "connecting",
       },
     },
     connecting: {
       on: {
-        [HarmonyEvent.HUB_DISCOVERED]: {
-          actions: assign({
-            hubs: (context, event) => [...context.hubs, event.hub],
-          }),
-        },
-        [HarmonyEvent.ERROR]: {
-          target: "error",
-          actions: assign({
-            error: (_, event) => event.error,
-          }),
-        },
+        [ERROR]: "error",
       },
     },
     error: {
       on: {
-        [HarmonyEvent.RESET]: {
-          target: "idle",
-          actions: assign(() => initialContext),
-        },
+        [RESET]: "idle",
       },
     },
   },
