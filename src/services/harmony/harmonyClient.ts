@@ -2,15 +2,26 @@ import { HarmonyHub, HarmonyDevice, HarmonyActivity, HarmonyCommand } from "../.
 import { HarmonyError, ErrorCategory } from "../../types/errors";
 import { Logger } from "../logger";
 import { getHarmonyClient } from "@harmonyhub/client-ws";
-import { getPreferenceValues } from "@raycast/api";
+import { getPreferenceValues, LocalStorage } from "@raycast/api";
+
+// Cache constants
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+interface CachedConfig {
+  devices: HarmonyDevice[];
+  activities: HarmonyActivity[];
+  timestamp: number;
+}
 
 export class HarmonyClient {
   private client: any = null;
   private isConnected = false;
   public readonly hub: HarmonyHub;
+  private cacheKey: string;
 
   constructor(hub: HarmonyHub) {
     this.hub = hub;
+    this.cacheKey = `harmony-config-${hub.hubId}`;
   }
 
   /**
@@ -55,8 +66,16 @@ export class HarmonyClient {
     }
 
     try {
+      // Try to get from cache first
+      const cached = await this.getCachedConfig();
+      if (cached?.devices) {
+        Logger.info("Using cached devices for hub", this.hub.name);
+        return cached.devices;
+      }
+
+      // Get from hub if not cached
       const config = await this.client.getAvailableCommands();
-      return config.device.map(device => ({
+      const devices = config.device.map(device => ({
         id: device.id,
         name: device.label,
         type: device.type,
@@ -69,6 +88,11 @@ export class HarmonyClient {
             group: func.action?.command?.type || "IRCommand"
           }))
       }));
+
+      // Cache the new devices along with current activities
+      await this.updateConfigCache(devices, await this.getActivitiesFromHub());
+
+      return devices;
     } catch (error) {
       throw new HarmonyError(
         "Failed to get devices",
@@ -87,19 +111,82 @@ export class HarmonyClient {
     }
 
     try {
-      const activities = await this.client.getActivities();
-      return activities.map(activity => ({
-        id: activity.id,
-        name: activity.label,
-        type: activity.type,
-        isCurrent: false // Will be updated by current activity check
-      }));
+      // Try to get from cache first
+      const cached = await this.getCachedConfig();
+      if (cached?.activities) {
+        Logger.info("Using cached activities for hub", this.hub.name);
+        return cached.activities;
+      }
+
+      // Get from hub if not cached
+      const activities = await this.getActivitiesFromHub();
+
+      // Cache the new activities along with current devices
+      await this.updateConfigCache(await this.getDevices(), activities);
+
+      return activities;
     } catch (error) {
       throw new HarmonyError(
         "Failed to get activities",
         ErrorCategory.HUB_COMMUNICATION,
         error as Error
       );
+    }
+  }
+
+  /**
+   * Get activities directly from hub
+   */
+  private async getActivitiesFromHub(): Promise<HarmonyActivity[]> {
+    const activities = await this.client.getActivities();
+    return activities.map(activity => ({
+      id: activity.id,
+      name: activity.label,
+      type: activity.type,
+      isCurrent: false // Will be updated by current activity check
+    }));
+  }
+
+  /**
+   * Get cached config if available and not expired
+   */
+  private async getCachedConfig(): Promise<CachedConfig | null> {
+    try {
+      const cached = await LocalStorage.getItem(this.cacheKey);
+      if (!cached) {
+        return null;
+      }
+
+      const config: CachedConfig = JSON.parse(cached);
+      
+      // Check if cache is expired
+      if (Date.now() - config.timestamp > CACHE_TTL) {
+        Logger.info("Config cache expired for hub", this.hub.name);
+        await LocalStorage.removeItem(this.cacheKey);
+        return null;
+      }
+
+      return config;
+    } catch (error) {
+      Logger.warn("Failed to get cached config:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Update the config cache with new devices and activities
+   */
+  private async updateConfigCache(devices: HarmonyDevice[], activities: HarmonyActivity[]): Promise<void> {
+    try {
+      const cache: CachedConfig = {
+        devices,
+        activities,
+        timestamp: Date.now()
+      };
+      await LocalStorage.setItem(this.cacheKey, JSON.stringify(cache));
+      Logger.info("Cached config for hub", this.hub.name);
+    } catch (error) {
+      Logger.warn("Failed to cache config:", error);
     }
   }
 

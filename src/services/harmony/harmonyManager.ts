@@ -1,10 +1,18 @@
 import { Explorer } from "@harmonyhub/discover";
 import { HarmonyHub } from "../../types/harmony";
 import { Logger } from "../logger";
+import { LocalStorage } from "@raycast/api";
 
 // Constants
 const DISCOVERY_TIMEOUT = 5000; // Reduced from 10s to 5s
 const DISCOVERY_COMPLETE_DELAY = 500; // Wait 500ms after finding a hub before completing
+const CACHE_KEY = "harmony-hubs";
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+interface CachedHubs {
+  hubs: HarmonyHub[];
+  timestamp: number;
+}
 
 export class HarmonyManager {
   private explorer: Explorer | null = null;
@@ -18,6 +26,18 @@ export class HarmonyManager {
   public async startDiscovery(
     onProgress?: (progress: number, message: string) => void
   ): Promise<HarmonyHub[]> {
+    // Check cache first
+    try {
+      const cached = await this.getCachedHubs();
+      if (cached) {
+        Logger.info("Using cached hubs");
+        onProgress?.(1, `Found ${cached.length} cached hub(s)`);
+        return cached;
+      }
+    } catch (error) {
+      Logger.warn("Failed to read cache:", error);
+    }
+
     // If discovery is already in progress, return the existing promise
     if (this.discoveryPromise) {
       return this.discoveryPromise;
@@ -43,6 +63,9 @@ export class HarmonyManager {
         // Function to complete discovery
         const completeDiscovery = async () => {
           await this.cleanup();
+          if (hubs.length > 0) {
+            await this.cacheHubs(hubs);
+          }
           resolve(hubs);
         };
 
@@ -98,6 +121,48 @@ export class HarmonyManager {
     } finally {
       this.isDiscovering = false;
       this.discoveryPromise = null;
+    }
+  }
+
+  /**
+   * Cache discovered hubs
+   */
+  private async cacheHubs(hubs: HarmonyHub[]): Promise<void> {
+    try {
+      const cache: CachedHubs = {
+        hubs,
+        timestamp: Date.now()
+      };
+      await LocalStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+      Logger.info("Cached", hubs.length, "hubs");
+    } catch (error) {
+      Logger.warn("Failed to cache hubs:", error);
+    }
+  }
+
+  /**
+   * Get cached hubs if available and not expired
+   */
+  private async getCachedHubs(): Promise<HarmonyHub[] | null> {
+    try {
+      const cached = await LocalStorage.getItem(CACHE_KEY);
+      if (!cached) {
+        return null;
+      }
+
+      const { hubs, timestamp }: CachedHubs = JSON.parse(cached);
+      
+      // Check if cache is expired
+      if (Date.now() - timestamp > CACHE_TTL) {
+        Logger.info("Cache expired");
+        await LocalStorage.removeItem(CACHE_KEY);
+        return null;
+      }
+
+      return hubs;
+    } catch (error) {
+      Logger.warn("Failed to get cached hubs:", error);
+      return null;
     }
   }
 
