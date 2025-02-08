@@ -1,4 +1,4 @@
-import { HarmonyHub, HarmonyDevice, HarmonyActivity, HarmonyCommand } from "../../types/harmony";
+import { HarmonyHub, HarmonyDevice, HarmonyActivity, HarmonyCommand } from "../../features/control/types/harmony";
 import { HarmonyError, ErrorCategory } from "../../types/errors";
 import { Logger } from "../logger";
 import { getHarmonyClient } from "@harmonyhub/client-ws";

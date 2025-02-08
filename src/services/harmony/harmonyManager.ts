@@ -1,5 +1,5 @@
 import { Explorer } from "@harmonyhub/discover";
-import { HarmonyHub } from "../../types/harmony";
+import { HarmonyHub } from "../../features/control/types/harmony";
 import { Logger } from "../logger";
 import { LocalStorage } from "@raycast/api";
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState, createContext, useContext, useRef } from "react";
-import { HarmonyHub, HarmonyDevice, HarmonyActivity, HarmonyCommand, LoadingState } from "../types/harmony";
+import { HarmonyHub, HarmonyDevice, HarmonyActivity, HarmonyCommand, LoadingState } from "../features/control/types/harmony";
 import { HarmonyManager } from "../services/harmony/harmonyManager";
 import { HarmonyClient } from "../services/harmony/harmonyClient";
 import { HarmonyError, ErrorCategory } from "../types/errors";

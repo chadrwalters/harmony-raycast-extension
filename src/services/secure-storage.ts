@@ -5,7 +5,7 @@ import crypto from "crypto";
 // Core services
 import { ErrorHandler } from "./errorHandler";
 import { ErrorCategory, HarmonyError } from "../types/errors";
-import { HarmonyHub } from "../types/harmony";
+import { HarmonyHub } from "../features/control/types/harmony";
 import { Logger } from "./logger";
 
 /**

@@ -1,7 +1,7 @@
 import { List, Icon, ActionPanel, Action, showToast, Toast, getPreferenceValues } from "@raycast/api";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useHarmony } from "../hooks/useHarmony";
-import { HarmonyDevice, HarmonyActivity, HarmonyHub } from "../types/harmony";
+import { HarmonyDevice, HarmonyActivity, HarmonyHub } from "../features/control/types/harmony";
 import { Logger } from "../services/logger";
 import { FeedbackState } from "./FeedbackState";
 import { ErrorBoundary } from "./ErrorBoundary";

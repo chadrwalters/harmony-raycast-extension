@@ -4,7 +4,7 @@
  */
 
 import { createMachine, assign } from "xstate";
-import { HarmonyHub, HarmonyDevice, HarmonyActivity } from "../../types/harmony";
+import { HarmonyHub, HarmonyDevice, HarmonyActivity } from "../../features/control/types/harmony";
 import { Logger } from "../logger";
 import { ErrorCategory } from "../../types/errors";
 

@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import { EventEmitter } from "events";
-import { HarmonyHub, HarmonyDevice, HarmonyActivity } from "../../types/harmony";
+import { HarmonyHub, HarmonyDevice, HarmonyActivity } from "../../features/control/types/harmony";
 import { Logger } from "../logger";
 import { HarmonyError, ErrorCategory } from "../../types/errors";
 import {

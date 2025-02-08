@@ -3,7 +3,7 @@ import { useMemo, useState, useCallback } from "react";
 import { List, Icon, ActionPanel, Action, showToast, Toast } from "@raycast/api";
 
 // Types
-import { HarmonyDevice } from "../types/harmony";
+import { HarmonyDevice } from "../features/control/types/harmony";
 import { useHarmony } from "../hooks/useHarmony";
 import { Logger } from "../services/logger";
 import { FeedbackState, ErrorStates, LoadingStates } from "./FeedbackState";
