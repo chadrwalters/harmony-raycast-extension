@@ -1,8 +1,8 @@
-import { LocalStorage } from "@raycast/api";
-import HarmonyCommand from "./features/control/components/HarmonyCommand";
-import { HarmonyProvider } from "./features/control/context/HarmonyContext";
+import React from "react";
+import { HarmonyCommand } from "./components/HarmonyCommand";
+import { HarmonyProvider } from "./hooks/useHarmony";
 
-export default function Command() {
+export default function Command(): React.ReactElement {
   return (
     <HarmonyProvider>
       <HarmonyCommand />

@@ -91,6 +91,102 @@ The extension implements comprehensive error handling:
 - Input validation
 - Error sanitization
 
+## File Structure Breakdown
+
+### Source Directory (`src/`)
+
+#### Core Directory (`src/core/`)
+Contains core functionality and services.
+
+##### Harmony Directory (`src/core/harmony/`)
+- `harmonyClient.ts` - Singleton client for Harmony Hub communication
+- `hubDiscovery.ts` - Hub discovery service using mDNS
+- `commandExecutor.ts` - Command execution and validation
+- `stateManager.ts` - Hub state management and caching
+
+##### Storage Directory (`src/core/storage/`)
+- `secureStorage.ts` - Secure credential and token storage
+- `sessionManager.ts` - Session state persistence
+- `cache.ts` - Caching implementation for hub data
+
+##### WebSocket Directory (`src/core/websocket/`)
+- `wsClient.ts` - WebSocket client implementation
+- `messageHandler.ts` - WebSocket message processing
+- `reconnection.ts` - Automatic reconnection logic
+
+#### Types Directory (`src/types/`)
+Core type definitions for the application.
+
+- `harmony.ts` - Harmony Hub related types and interfaces
+- `components.ts` - React component prop types
+- `websocket.ts` - WebSocket message and event types
+- `state.ts` - State machine and context types
+- `errors.ts` - Error categories and types
+- `logging.ts` - Logging system types
+
+#### Features Directory (`src/features/`)
+
+##### Control Feature (`src/features/control/`)
+Main device control functionality.
+
+- `components/`
+  - `ActivityList.tsx` - Activity selection and control
+  - `DeviceList.tsx` - Device selection and command execution
+  - `CommandPalette.tsx` - Command selection interface
+  - `ErrorBoundary.tsx` - Error handling component
+  - `LoadingState.tsx` - Loading state indicators
+  - `StatusBar.tsx` - Connection status display
+
+- `hooks/`
+  - `useHarmonyHub.ts` - Hub connection and state hook
+  - `useDeviceCommands.ts` - Device command management
+  - `useActivityControl.ts` - Activity control logic
+  - `useErrorHandler.ts` - Error handling hook
+
+- `machines/`
+  - `harmonyMachine.ts` - XState machine for hub control
+  - `activityMachine.ts` - Activity state management
+  - `deviceMachine.ts` - Device state management
+
+##### Shared Feature (`src/features/shared/`)
+Reusable components and utilities.
+
+- `components/`
+  - `Button.tsx` - Styled button component
+  - `Icon.tsx` - Icon component with variants
+  - `Toast.tsx` - Toast notification component
+  - `Spinner.tsx` - Loading spinner component
+
+- `hooks/`
+  - `useDebounce.ts` - Input debouncing hook
+  - `useInterval.ts` - Interval management hook
+  - `useLocalStorage.ts` - Local storage hook
+
+#### Utils Directory (`src/utils/`)
+General utility functions.
+
+- `logger.ts` - Logging utility functions
+- `validation.ts` - Input validation helpers
+- `network.ts` - Network utility functions
+- `time.ts` - Time and duration utilities
+
+### Documentation Directory (`docs/`)
+
+- `architecture.md` - System architecture documentation
+- `api.md` - API documentation and examples
+- `development.md` - Development setup and guidelines
+- `testing.md` - Testing procedures and guidelines
+
+### Configuration Files (Root)
+
+- `package.json` - Project dependencies and scripts
+- `tsconfig.json` - TypeScript configuration
+- `jest.config.js` - Testing configuration
+- `.eslintrc.js` - ESLint configuration
+- `.prettierrc` - Code formatting rules
+- `README.md` - Project documentation
+- `.Plan` - Project planning and tracking
+
 ## Development Guidelines
 
 ### 1. Code Organization
