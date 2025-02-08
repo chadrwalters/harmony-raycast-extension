@@ -1,364 +1,132 @@
-import { showToast, Toast, LocalStorage } from "@raycast/api";
 import { Explorer } from "@harmonyhub/discover";
+import { HarmonyHub } from "../../types/harmony";
 import { Logger } from "../logger";
-import { HarmonyHub, HarmonyStage, HarmonyDevice, HarmonyActivity, HarmonyState, LoadingState, HarmonyCommand } from "../../types/harmony";
-import { HarmonyError, ErrorCategory } from "../../types/errors";
-import { HarmonyClient } from "./harmonyClient";
 
 // Constants
-const DISCOVERY_TIMEOUT = 30000; // 30 seconds
-const GRACE_PERIOD = 10000; // 10 seconds after first hub found
-const MAX_DISCOVERY_RETRIES = 3;
-const DISCOVERY_RETRY_DELAY = 1000; // 1 second between retries
-const CACHE_KEY = "harmony_hub_data";
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+const DISCOVERY_TIMEOUT = 5000; // Reduced from 10s to 5s
+const DISCOVERY_COMPLETE_DELAY = 500; // Wait 500ms after finding a hub before completing
 
-type StateUpdateCallback = (state: HarmonyState) => void;
-type LoadingUpdateCallback = (loading: LoadingState) => void;
-
-/**
- * Manages Harmony Hub discovery and high-level operations
- */
 export class HarmonyManager {
-  private static instance: HarmonyManager;
-  private subscribers: Set<StateUpdateCallback> = new Set();
-  private client: HarmonyClient | null = null;
   private explorer: Explorer | null = null;
-  private discoveryTimeout: NodeJS.Timeout | null = null;
-  private discoveryLock: Promise<HarmonyHub[]> | null = null;
   private isDiscovering = false;
-  private initialized = false;
-  private state: HarmonyState = {
-    hubs: [],
-    selectedHub: null,
-    devices: [],
-    activities: [],
-    currentActivity: null,
-    error: null,
-    loadingState: {
-      stage: HarmonyStage.DISCOVERING,
-      progress: 0,
-      message: "Initializing..."
+  private discoveryPromise: Promise<HarmonyHub[]> | null = null;
+  private completeTimeout: NodeJS.Timeout | null = null;
+
+  /**
+   * Start discovery of Harmony Hubs on the network
+   */
+  public async startDiscovery(
+    onProgress?: (progress: number, message: string) => void
+  ): Promise<HarmonyHub[]> {
+    // If discovery is already in progress, return the existing promise
+    if (this.discoveryPromise) {
+      Logger.warn("Discovery already in progress, returning existing promise");
+      return this.discoveryPromise;
     }
-  };
 
-  private constructor() {}
+    try {
+      // Ensure cleanup of any previous explorer
+      await this.cleanup();
 
-  /**
-   * Get singleton instance
-   */
-  public static getInstance(): HarmonyManager {
-    if (!HarmonyManager.instance) {
-      HarmonyManager.instance = new HarmonyManager();
-    }
-    return HarmonyManager.instance;
-  }
+      this.isDiscovering = true;
+      onProgress?.(0, "Starting discovery process");
 
-  /**
-   * Subscribe to state updates
-   */
-  public subscribe(callback: StateUpdateCallback): () => void {
-    this.subscribers.add(callback);
-    return () => this.subscribers.delete(callback);
-  }
+      Logger.info("Starting discovery process");
+      this.explorer = new Explorer();
 
-  /**
-   * Update state and notify subscribers
-   */
-  private setState(newState: Partial<HarmonyState>): void {
-    this.state = { ...this.state, ...newState };
-    this.subscribers.forEach(callback => callback(this.state));
-  }
-
-  /**
-   * Handle hub found event
-   */
-  private handleHubFound(hub: any): void {
-    Logger.debug("Hub found event:", JSON.stringify(hub, null, 2));
-    Logger.debug("Processing hub found event:", {
-      uuid: hub.uuid,
-      friendlyName: hub.friendlyName,
-      ip: hub.ip,
-      version: hub.hubVersion,
-      productId: hub.productId,
-      fullHubInfo: hub.fullHubInfo
-    });
-
-    const existingHub = this.state.hubs.find(h => h.id === hub.uuid);
-    if (!existingHub) {
-      Logger.info(`Found new Harmony Hub: ${hub.friendlyName} (${hub.ip})`);
-      showToast({
-        style: Toast.Style.Success,
-        title: "Found new Harmony Hub",
-        message: `${hub.friendlyName} (${hub.ip})`
-      });
-
-      const newHub: HarmonyHub = {
-        id: hub.uuid,
-        name: hub.friendlyName,
-        ip: hub.ip,
-        remoteId: hub.fullHubInfo?.remoteId,
-        hubId: hub.fullHubInfo?.hubId,
-        version: hub.fullHubInfo?.current_fw_version,
-        port: hub.fullHubInfo?.port,
-        productId: hub.fullHubInfo?.productId,
-        protocolVersion: hub.fullHubInfo?.protocolVersion
-      };
-
-      Logger.debug("Created new hub object:", newHub);
-      
-      // Update state with new hub
-      const updatedHubs = [...this.state.hubs, newHub];
-      this.setState({
-        hubs: updatedHubs,
-        loadingState: {
-          ...this.state.loadingState,
-          progress: 0.5,
-          message: `Found ${updatedHubs.length} Harmony Hub${updatedHubs.length === 1 ? '' : 's'}`
+      // Create and store the discovery promise
+      this.discoveryPromise = new Promise<HarmonyHub[]>((resolve, reject) => {
+        if (!this.explorer) {
+          reject(new Error("Explorer not initialized"));
+          return;
         }
-      });
 
-      // Cache the hub data
-      this.cacheHubData(newHub);
-    }
-  }
+        const hubs: HarmonyHub[] = [];
 
-  /**
-   * Cache hub data
-   */
-  private async cacheHubData(hub: HarmonyHub): Promise<void> {
-    try {
-      const cachedData = await LocalStorage.getItem<string>(CACHE_KEY);
-      const data = cachedData ? JSON.parse(cachedData) : { hubs: [] };
-      
-      // Update or add hub
-      const index = data.hubs.findIndex((h: HarmonyHub) => h.id === hub.id);
-      if (index >= 0) {
-        data.hubs[index] = hub;
-      } else {
-        data.hubs.push(hub);
-      }
-      
-      await LocalStorage.setItem(CACHE_KEY, JSON.stringify(data));
-      Logger.debug("Cached hub data:", data);
-    } catch (error) {
-      Logger.error("Failed to cache hub data:", error);
-    }
-  }
+        // Function to complete discovery
+        const completeDiscovery = async () => {
+          await this.cleanup();
+          resolve(hubs);
+        };
 
-  /**
-   * Load cached hub data
-   */
-  private async loadCachedHubData(): Promise<void> {
-    try {
-      const cachedData = await LocalStorage.getItem<string>(CACHE_KEY);
-      if (!cachedData) {
-        return;
-      }
+        // Set timeout to stop discovery after DISCOVERY_TIMEOUT
+        const timeout = setTimeout(async () => {
+          Logger.info(`Discovery timeout after ${DISCOVERY_TIMEOUT}ms`);
+          await completeDiscovery();
+        }, DISCOVERY_TIMEOUT);
 
-      const data = JSON.parse(cachedData);
-      if (data.hubs?.length > 0) {
-        this.setState({
-          hubs: data.hubs,
-          loadingState: {
-            stage: HarmonyStage.DISCOVERING,
-            progress: 0.25,
-            message: "Loaded cached hubs"
+        this.explorer.on("online", (data: any) => {
+          Logger.info("Found hub:", data);
+          
+          const hub: HarmonyHub = {
+            name: data.friendlyName,
+            ip: data.ip,
+            remoteId: data.remoteId,
+            hubId: data.hubId
+          };
+
+          hubs.push(hub);
+          onProgress?.(0.5, `Found hub: ${hub.name}`);
+
+          // Clear any existing completion timeout
+          if (this.completeTimeout) {
+            clearTimeout(this.completeTimeout);
           }
+
+          // Set a new completion timeout
+          this.completeTimeout = setTimeout(async () => {
+            Logger.info("Completing discovery early after finding hub");
+            clearTimeout(timeout);
+            await completeDiscovery();
+          }, DISCOVERY_COMPLETE_DELAY);
         });
-      }
-    } catch (error) {
-      Logger.error("Failed to load cached hub data:", error);
-    }
-  }
 
-  /**
-   * Discover Harmony Hubs
-   */
-  public async discoverHubs(): Promise<HarmonyHub[]> {
-    if (this.isDiscovering) {
-      Logger.info("Discovery already in progress");
-      return this.state.hubs;
-    }
-
-    if (this.discoveryLock) {
-      Logger.info("Waiting for existing discovery to complete");
-      return this.discoveryLock;
-    }
-
-    this.isDiscovering = true;
-    this.setState({
-      loadingState: {
-        stage: HarmonyStage.DISCOVERING,
-        progress: 0,
-        message: "Starting hub discovery..."
-      }
-    });
-
-    // Load cached data first
-    await this.loadCachedHubData();
-
-    this.discoveryLock = new Promise((resolve, reject) => {
-      try {
-        Logger.info("Starting hub discovery");
-        this.explorer = new Explorer();
-
-        this.explorer.on("online", this.handleHubFound.bind(this));
-        this.explorer.on("error", (error: Error) => {
+        this.explorer.on("error", async (error: Error) => {
           Logger.error("Discovery error:", error);
+          clearTimeout(timeout);
+          if (this.completeTimeout) {
+            clearTimeout(this.completeTimeout);
+          }
+          await this.cleanup();
+          reject(error);
         });
 
         // Start discovery
         this.explorer.start();
-        Logger.info("Discovery process started");
+      });
 
-        // Set timeout
-        this.discoveryTimeout = setTimeout(async () => {
-          Logger.info("Discovery timeout reached");
-          await this.cleanupDiscovery();
-          
-          if (this.state.hubs.length === 0) {
-            const error = new HarmonyError("No Harmony Hubs found", ErrorCategory.DISCOVERY);
-            this.setState({ error });
-            reject(error);
-          } else {
-            resolve(this.state.hubs);
-          }
-        }, DISCOVERY_TIMEOUT);
+      // Return the discovery promise
+      return await this.discoveryPromise;
 
-      } catch (error) {
-        this.cleanupDiscovery();
-        const harmonyError = new HarmonyError("Discovery failed", ErrorCategory.DISCOVERY, error as Error);
-        this.setState({ error: harmonyError });
-        reject(harmonyError);
-      }
-    });
-
-    try {
-      const hubs = await this.discoveryLock;
-      return hubs;
+    } catch (error) {
+      Logger.error("Failed to start discovery:", error);
+      throw error;
     } finally {
-      this.discoveryLock = null;
       this.isDiscovering = false;
+      this.discoveryPromise = null;
     }
   }
 
   /**
    * Clean up discovery resources
    */
-  private async cleanupDiscovery(): Promise<void> {
-    if (this.discoveryTimeout) {
-      clearTimeout(this.discoveryTimeout);
-      this.discoveryTimeout = null;
+  public async cleanup(): Promise<void> {
+    if (this.completeTimeout) {
+      clearTimeout(this.completeTimeout);
+      this.completeTimeout = null;
     }
 
     if (this.explorer) {
       try {
+        Logger.info("Cleaning up explorer");
         await this.explorer.stop();
+        this.explorer.removeAllListeners();
+        this.explorer = null;
       } catch (error) {
-        Logger.error("Error stopping explorer:", error);
+        Logger.error("Error cleaning up explorer:", error);
       }
-      this.explorer = null;
     }
-
     this.isDiscovering = false;
-  }
-
-  /**
-   * Select and connect to a hub
-   */
-  public async selectHub(hub: HarmonyHub): Promise<void> {
-    if (this.client?.hub?.id === hub.id) {
-      Logger.info("Already connected to selected hub");
-      return;
-    }
-
-    // Disconnect from current hub
-    if (this.client) {
-      await this.client.disconnect();
-    }
-
-    // Create new client
-    this.client = new HarmonyClient(hub);
-    
-    this.setState({
-      selectedHub: hub,
-      loadingState: {
-        stage: HarmonyStage.CONNECTING,
-        progress: 0,
-        message: `Connecting to ${hub.name}...`
-      }
-    });
-
-    try {
-      await this.client.connect();
-      
-      // Load devices and activities
-      const [devices, activities] = await Promise.all([
-        this.client.getDevices(),
-        this.client.getActivities()
-      ]);
-
-      this.setState({
-        devices,
-        activities,
-        loadingState: {
-          stage: HarmonyStage.COMPLETE,
-          progress: 1,
-          message: "Connected"
-        }
-      });
-
-    } catch (error) {
-      const harmonyError = new HarmonyError(
-        "Failed to connect to hub",
-        ErrorCategory.CONNECTION,
-        error as Error
-      );
-      this.setState({ error: harmonyError });
-      throw harmonyError;
-    }
-  }
-
-  /**
-   * Execute a command
-   */
-  public async executeCommand(command: HarmonyCommand): Promise<void> {
-    if (!this.client) {
-      throw new HarmonyError("No hub selected", ErrorCategory.STATE);
-    }
-
-    await this.client.executeCommand(command);
-  }
-
-  /**
-   * Get current state
-   */
-  public getState(): HarmonyState {
-    return this.state;
-  }
-
-  /**
-   * Clean up resources
-   */
-  public async cleanup(): Promise<void> {
-    await this.cleanupDiscovery();
-    
-    if (this.client) {
-      await this.client.disconnect();
-      this.client = null;
-    }
-
-    this.setState({
-      selectedHub: null,
-      devices: [],
-      activities: [],
-      currentActivity: null,
-      loadingState: {
-        stage: HarmonyStage.DISCOVERING,
-        progress: 0,
-        message: "Disconnected"
-      }
-    });
+    this.discoveryPromise = null;
   }
 }

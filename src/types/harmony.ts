@@ -163,3 +163,37 @@ export type ErrorHandler = (error: Error) => void;
  * Hub discovery handler type.
  */
 export type HubDiscoveryHandler = (hub: HarmonyHub) => void;
+
+/**
+ * Status of a command in the queue
+ */
+export enum CommandStatus {
+  PENDING = "PENDING",
+  EXECUTING = "EXECUTING",
+  COMPLETED = "COMPLETED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED"
+}
+
+/**
+ * Command request for the queue
+ */
+export interface CommandRequest {
+  id: string;
+  command: HarmonyCommand;
+  timestamp: number;
+  retries?: number;
+  timeout?: number;
+}
+
+/**
+ * Result of a command execution
+ */
+export interface CommandResult {
+  id: string;
+  command: HarmonyCommand;
+  status: CommandStatus;
+  error?: Error;
+  timestamp: number;
+  completedAt?: number;
+}

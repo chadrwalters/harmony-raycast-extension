@@ -1,5 +1,5 @@
 import { List, Icon, ActionPanel, Action, showToast, Toast, getPreferenceValues } from "@raycast/api";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useHarmony } from "../hooks/useHarmony";
 import { HarmonyDevice, HarmonyActivity, HarmonyHub } from "../types/harmony";
 import { Logger } from "../services/logger";
@@ -24,17 +24,33 @@ export function HarmonyCommand(): JSX.Element {
     disconnect,
     refresh,
     executeCommand,
-    startActivity,
   } = useHarmony();
 
   const [searchText, setSearchText] = useState("");
-  const [view, setView] = useState<"activities" | "devices">("devices");
   const preferences = getPreferenceValues<Preferences>();
+  const defaultView = preferences.defaultView || "devices";
+  const [view, setView] = useState<"hubs" | "activities" | "devices">(
+    selectedHub ? defaultView : "hubs"
+  );
 
-  // Reset search when switching views
-  const resetSearch = useCallback(() => {
-    setSearchText("");
-  }, []);
+  // Start discovery on mount
+  useEffect(() => {
+    refresh().catch((error) => {
+      Logger.error("Failed to refresh:", error);
+      showToast({
+        style: Toast.Style.Failure,
+        title: "Failed to discover hubs",
+        message: error.message
+      });
+    });
+  }, [refresh]);
+
+  // Reset to hub selection if no hub is selected
+  useEffect(() => {
+    if (!selectedHub && view !== "hubs") {
+      setView("hubs");
+    }
+  }, [selectedHub, view]);
 
   // Get icon for command based on its label
   const getCommandIcon = useCallback((label: string): Icon => {
@@ -49,244 +65,179 @@ export function HarmonyCommand(): JSX.Element {
     if (lowerLabel.includes("back")) return Icon.Rewind;
     if (lowerLabel.includes("input")) return Icon.Link;
     if (lowerLabel.includes("menu")) return Icon.List;
-    if (lowerLabel.includes("up")) return Icon.ArrowUp;
-    if (lowerLabel.includes("down")) return Icon.ArrowDown;
-    if (lowerLabel.includes("left")) return Icon.ArrowLeft;
-    if (lowerLabel.includes("right")) return Icon.ArrowRight;
-    if (lowerLabel.includes("select") || lowerLabel.includes("enter") || lowerLabel.includes("ok")) return Icon.Return;
     return Icon.Circle;
   }, []);
 
-  // Show error state if there's an error
+  // Filter and sort devices based on search
+  const filteredDevices = useMemo(() => {
+    if (!devices) return [];
+    return devices
+      .filter(device => 
+        device.name.toLowerCase().includes(searchText.toLowerCase()) ||
+        device.commands.some(cmd => 
+          cmd.name.toLowerCase().includes(searchText.toLowerCase())
+        )
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [devices, searchText]);
+
+  // Filter and sort activities based on search
+  const filteredActivities = useMemo(() => {
+    if (!activities) return [];
+    return activities
+      .filter(activity =>
+        activity.name.toLowerCase().includes(searchText.toLowerCase())
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [activities, searchText]);
+
+  // Handle hub selection
+  const handleHubSelect = useCallback(async (hub: HarmonyHub) => {
+    try {
+      await connect(hub);
+      setView(defaultView);
+      setSearchText("");
+    } catch (error) {
+      Logger.error("Failed to connect to hub:", error);
+      showToast({
+        style: Toast.Style.Failure,
+        title: "Failed to connect",
+        message: error.message
+      });
+    }
+  }, [connect, defaultView]);
+
+  // Handle command execution
+  const handleCommand = useCallback(async (command: { name: string; deviceId: string }) => {
+    try {
+      await executeCommand(command);
+      showToast({
+        style: Toast.Style.Success,
+        title: "Command sent",
+        message: command.name
+      });
+    } catch (error) {
+      Logger.error("Failed to execute command:", error);
+      showToast({
+        style: Toast.Style.Failure,
+        title: "Command failed",
+        message: error.message
+      });
+    }
+  }, [executeCommand]);
+
   if (error) {
-    return (
-      <FeedbackState
-        title="Error"
-        description={error.message}
-        icon={{ source: Icon.ExclamationMark }}
-        actions={
-          <ActionPanel>
-            <Action title="Retry" onAction={refresh} />
-          </ActionPanel>
-        }
-      />
-    );
+    return <FeedbackState error={error} onRetry={refresh} />;
   }
 
-  // Show hub selection if no hub is selected
-  if (!selectedHub) {
+  // Show loading state
+  if (loadingState.stage === "DISCOVERING" && hubs.length === 0) {
     return (
-      <List
-        searchBarPlaceholder="Search hubs..."
-        isLoading={loadingState.stage === "DISCOVERING"}
-        searchText={searchText}
-        onSearchTextChange={setSearchText}
-      >
-        {hubs.length > 0 ? (
-          // Show found hubs even while discovering
-          hubs
-            .filter(hub => 
-              searchText ? 
-                hub.name.toLowerCase().includes(searchText.toLowerCase()) || 
-                hub.ip.includes(searchText)
-              : true
-            )
-            .map((hub) => (
-              <List.Item
-                key={hub.id}
-                title={hub.name}
-                subtitle={`${hub.ip} - ${hub.version || "Unknown Version"}`}
-                icon={Icon.Wifi}
-                actions={
-                  <ActionPanel>
-                    <Action
-                      title="Connect"
-                      icon={Icon.Link}
-                      onAction={() => connect(hub)}
-                    />
-                  </ActionPanel>
-                }
-              />
-            ))
-        ) : loadingState.stage === "DISCOVERING" ? (
-          <List.EmptyView
-            icon={Icon.CircleProgress}
-            title={loadingState.message || "Discovering Hubs"}
-            description="Searching your network for Harmony Hubs..."
-          />
-        ) : loadingState.stage === "ERROR" ? (
-          <List.EmptyView
-            icon={Icon.ExclamationMark}
-            title={loadingState.message || "Error"}
-            description="Failed to discover Harmony Hubs. Please try again."
-            actions={
-              <ActionPanel>
-                <Action title="Retry" onAction={refresh} />
-              </ActionPanel>
-            }
-          />
-        ) : (
-          <List.EmptyView
-            icon={Icon.XmarkCircle}
-            title="No Hubs Found"
-            description="No Harmony Hubs were found on your network."
-            actions={
-              <ActionPanel>
-                <Action title="Search Again" onAction={refresh} />
-              </ActionPanel>
-            }
-          />
-        )}
+      <List isLoading={true}>
+        <List.EmptyView
+          icon={Icon.CircleProgress}
+          title="Discovering Harmony Hubs..."
+          description={loadingState.message}
+        />
       </List>
     );
   }
 
-  // Show loading state while connecting or loading data
-  if (loadingState.stage !== "complete") {
+  // Show hub selection
+  if (view === "hubs") {
     return (
-      <FeedbackState
-        title={loadingState.message}
-        description={`${Math.round(loadingState.progress * 100)}%`}
-        icon={{ source: Icon.CircleProgress }}
-      />
+      <List
+        searchBarPlaceholder="Search hubs..."
+        onSearchTextChange={setSearchText}
+        isLoading={loadingState.stage === "DISCOVERING"}
+      >
+        <List.Section title="Available Hubs">
+          {hubs.map((hub) => (
+            <List.Item
+              key={hub.id}
+              title={hub.name}
+              subtitle={hub.ip}
+              icon={Icon.Globe}
+              actions={
+                <ActionPanel>
+                  <Action
+                    title="Select Hub"
+                    onAction={() => handleHubSelect(hub)}
+                  />
+                </ActionPanel>
+              }
+            />
+          ))}
+        </List.Section>
+      </List>
     );
   }
 
-  // Show main control view
+  // Show devices or activities based on view
   return (
     <List
-      searchText={searchText}
-      onSearchTextChange={setSearchText}
       searchBarPlaceholder={`Search ${view}...`}
-      navigationTitle={selectedHub.name}
-      isLoading={loadingState.stage === "loading"}
+      onSearchTextChange={setSearchText}
       searchBarAccessory={
         <List.Dropdown
           tooltip="Select View"
           value={view}
-          onChange={(newView) => {
-            setView(newView as "activities" | "devices");
-            resetSearch();
-          }}
+          onChange={(newView) => setView(newView as "devices" | "activities")}
         >
-          <List.Dropdown.Item title="Activities" value="activities" icon={Icon.PlayCircle} />
-          <List.Dropdown.Item title="Devices" value="devices" icon={Icon.TV} />
+          <List.Dropdown.Item title="Devices" value="devices" />
+          <List.Dropdown.Item title="Activities" value="activities" />
         </List.Dropdown>
       }
     >
-      {view === "activities" ? (
-        activities.length === 0 ? (
-          <List.EmptyView
-            icon={Icon.QuestionMark}
-            title="No Activities"
-            description="No activities found for this hub"
-          />
-        ) : (
-          activities.map((activity) => (
+      {view === "devices" ? (
+        // Show devices and their commands
+        filteredDevices.map((device) => (
+          <List.Section key={device.id} title={device.name}>
+            {device.commands.map((command) => (
+              <List.Item
+                key={`${device.id}-${command.id}`}
+                title={command.name}
+                icon={getCommandIcon(command.name)}
+                actions={
+                  <ActionPanel>
+                    <Action
+                      title="Send Command"
+                      onAction={() => handleCommand(command)}
+                    />
+                  </ActionPanel>
+                }
+              />
+            ))}
+          </List.Section>
+        ))
+      ) : (
+        // Show activities
+        <List.Section title="Activities">
+          {filteredActivities.map((activity) => (
             <List.Item
               key={activity.id}
               title={activity.name}
-              icon={Icon.PlayCircle}
+              icon={activity.isCurrent ? Icon.CheckCircle : Icon.Circle}
               accessories={[
-                { text: activity.isAVActivity ? "AV Activity" : "Activity" },
-                currentActivity?.id === activity.id ? { icon: Icon.Checkmark } : null,
+                activity.isCurrent && { text: "Current", icon: Icon.Star }
               ].filter(Boolean)}
               actions={
                 <ActionPanel>
                   <Action
                     title="Start Activity"
-                    icon={Icon.Play}
-                    onAction={() => startActivity(activity)}
-                    shortcut={{ modifiers: ["cmd"], key: "return" }}
-                  />
-                  <Action
-                    title="Switch to Devices"
-                    icon={Icon.TV}
-                    onAction={() => setView("devices")}
-                    shortcut={{ modifiers: ["cmd", "shift"], key: "d" }}
-                  />
-                  <Action
-                    title="Disconnect"
-                    icon={Icon.Disconnect}
-                    onAction={disconnect}
-                    shortcut={{ modifiers: ["cmd"], key: "d" }}
-                  />
-                  <Action
-                    title="Refresh"
-                    icon={Icon.ArrowClockwise}
-                    onAction={refresh}
-                    shortcut={{ modifiers: ["cmd"], key: "r" }}
+                    onAction={() => {
+                      showToast({
+                        style: Toast.Style.Animated,
+                        title: "Starting activity",
+                        message: activity.name
+                      });
+                    }}
                   />
                 </ActionPanel>
               }
             />
-          ))
-        )
-      ) : devices.length === 0 ? (
-        <List.EmptyView
-          icon={Icon.QuestionMark}
-          title="No Devices"
-          description={searchText ? "Try a different search term" : "No devices found for this hub"}
-        />
-      ) : (
-        devices.map((device) => (
-          <List.Item
-            key={device.id}
-            title={device.name}
-            subtitle={`${device.type} - ${device.commands.length} commands`}
-            icon={Icon.TV}
-            actions={
-              <ActionPanel>
-                <ActionPanel.Section>
-                  <Action.Push
-                    title="Show Commands"
-                    icon={Icon.List}
-                    target={
-                      <List navigationTitle={`${device.name} Commands`}>
-                        {device.commands.map((command) => (
-                          <List.Item
-                            key={command.name}
-                            title={command.label}
-                            icon={getCommandIcon(command.label)}
-                            actions={
-                              <ActionPanel>
-                                <Action
-                                  title={`Execute ${command.label}`}
-                                  icon={getCommandIcon(command.label)}
-                                  onAction={() => executeCommand(device.id, command.name)}
-                                />
-                              </ActionPanel>
-                            }
-                          />
-                        ))}
-                      </List>
-                    }
-                  />
-                </ActionPanel.Section>
-                <ActionPanel.Section>
-                  <Action
-                    title="Switch to Activities"
-                    icon={Icon.PlayCircle}
-                    onAction={() => setView("activities")}
-                    shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
-                  />
-                  <Action
-                    title="Disconnect"
-                    icon={Icon.Disconnect}
-                    onAction={disconnect}
-                    shortcut={{ modifiers: ["cmd"], key: "d" }}
-                  />
-                  <Action
-                    title="Refresh"
-                    icon={Icon.ArrowClockwise}
-                    onAction={refresh}
-                    shortcut={{ modifiers: ["cmd"], key: "r" }}
-                  />
-                </ActionPanel.Section>
-              </ActionPanel>
-            }
-          />
-        ))
+          ))}
+        </List.Section>
       )}
     </List>
   );
