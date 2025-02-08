@@ -1,5 +1,13 @@
 {
   "root": true,
   "extends": ["@raycast"],
-  "ignorePatterns": ["**/*.md"]
+  "ignorePatterns": ["**/*.md"],
+  "overrides": [
+    {
+      "files": ["*.typegen.ts"],
+      "rules": {
+        "@typescript-eslint/ban-types": "off"
+      }
+    }
+  ]
 }
