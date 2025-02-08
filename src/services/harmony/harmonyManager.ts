@@ -20,7 +20,6 @@ export class HarmonyManager {
   ): Promise<HarmonyHub[]> {
     // If discovery is already in progress, return the existing promise
     if (this.discoveryPromise) {
-      Logger.warn("Discovery already in progress, returning existing promise");
       return this.discoveryPromise;
     }
 
@@ -30,8 +29,6 @@ export class HarmonyManager {
 
       this.isDiscovering = true;
       onProgress?.(0, "Starting discovery process");
-
-      Logger.info("Starting discovery process");
       this.explorer = new Explorer();
 
       // Create and store the discovery promise
@@ -51,13 +48,11 @@ export class HarmonyManager {
 
         // Set timeout to stop discovery after DISCOVERY_TIMEOUT
         const timeout = setTimeout(async () => {
-          Logger.info(`Discovery timeout after ${DISCOVERY_TIMEOUT}ms`);
+          Logger.info("Discovery timeout");
           await completeDiscovery();
         }, DISCOVERY_TIMEOUT);
 
         this.explorer.on("online", (data: any) => {
-          Logger.info("Found hub:", data);
-          
           const hub: HarmonyHub = {
             name: data.friendlyName,
             ip: data.ip,
@@ -75,7 +70,6 @@ export class HarmonyManager {
 
           // Set a new completion timeout
           this.completeTimeout = setTimeout(async () => {
-            Logger.info("Completing discovery early after finding hub");
             clearTimeout(timeout);
             await completeDiscovery();
           }, DISCOVERY_COMPLETE_DELAY);
@@ -111,21 +105,17 @@ export class HarmonyManager {
    * Clean up discovery resources
    */
   public async cleanup(): Promise<void> {
+    if (this.explorer) {
+      this.explorer.stop();
+      this.explorer.removeAllListeners();
+      this.explorer = null;
+    }
+
     if (this.completeTimeout) {
       clearTimeout(this.completeTimeout);
       this.completeTimeout = null;
     }
 
-    if (this.explorer) {
-      try {
-        Logger.info("Cleaning up explorer");
-        await this.explorer.stop();
-        this.explorer.removeAllListeners();
-        this.explorer = null;
-      } catch (error) {
-        Logger.error("Error cleaning up explorer:", error);
-      }
-    }
     this.isDiscovering = false;
     this.discoveryPromise = null;
   }

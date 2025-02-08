@@ -118,10 +118,12 @@ export class HarmonyClient {
       Logger.debug("Sending command to hub", { command });
       
       const commandBody = {
-        command: command.name,
+        command: command.id,
         deviceId: command.deviceId,
         type: command.group || "IRCommand"
       };
+
+      Logger.debug("Command body:", commandBody);
 
       // Send press action
       await this.client.send("holdAction", commandBody);

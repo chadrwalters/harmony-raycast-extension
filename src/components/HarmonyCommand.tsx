@@ -32,6 +32,7 @@ export function HarmonyCommand(): JSX.Element {
   const [view, setView] = useState<"hubs" | "activities" | "devices">(
     selectedHub ? defaultView : "hubs"
   );
+  const [selectedDevice, setSelectedDevice] = useState<HarmonyDevice | null>(null);
 
   // Start discovery on mount
   useEffect(() => {
@@ -108,8 +109,13 @@ export function HarmonyCommand(): JSX.Element {
   }, [connect, defaultView]);
 
   // Handle command execution
-  const handleCommand = useCallback(async (command: { name: string; deviceId: string }) => {
+  const handleCommand = useCallback(async (command: { name: string; deviceId: string; id: string; group: string }) => {
     try {
+      Logger.debug("Executing command:", {
+        command,
+        device: selectedDevice?.name,
+        deviceId: selectedDevice?.id
+      });
       await executeCommand(command);
       showToast({
         style: Toast.Style.Success,
@@ -124,17 +130,40 @@ export function HarmonyCommand(): JSX.Element {
         message: error.message
       });
     }
-  }, [executeCommand]);
+  }, [executeCommand, selectedDevice]);
+
+  const handleActivity = useCallback(async (activity: HarmonyActivity) => {
+    try {
+      // Add activity handling logic here
+    } catch (error) {
+      Logger.error("Failed to handle activity:", error);
+      showToast({
+        style: Toast.Style.Failure,
+        title: "Activity failed",
+        message: error.message
+      });
+    }
+  }, []);
 
   if (error) {
     return <FeedbackState error={error} onRetry={refresh} />;
   }
+
+  useEffect(() => {
+    Logger.debug("HarmonyCommand render", {
+      view,
+      deviceCount: filteredDevices.length,
+      activityCount: filteredActivities.length,
+      loadingStage: loadingState.stage
+    });
+  }, [view, filteredDevices.length, filteredActivities.length, loadingState.stage]);
 
   // Show loading state
   if (loadingState.stage === "DISCOVERING" && hubs.length === 0) {
     return (
       <List isLoading={true}>
         <List.EmptyView
+          key="loading"
           icon={Icon.CircleProgress}
           title="Discovering Harmony Hubs..."
           description={loadingState.message}
@@ -151,10 +180,10 @@ export function HarmonyCommand(): JSX.Element {
         onSearchTextChange={setSearchText}
         isLoading={loadingState.stage === "DISCOVERING"}
       >
-        <List.Section title="Available Hubs">
+        <List.Section key="hub-selection" title="Available Hubs">
           {hubs.map((hub) => (
             <List.Item
-              key={hub.id}
+              key={hub.ip}
               title={hub.name}
               subtitle={hub.ip}
               icon={Icon.Globe}
@@ -182,56 +211,83 @@ export function HarmonyCommand(): JSX.Element {
         <List.Dropdown
           tooltip="Select View"
           value={view}
-          onChange={(newView) => setView(newView as "devices" | "activities")}
+          onChange={(newView) => {
+            setView(newView as "devices" | "activities");
+            setSelectedDevice(null);  // Reset selected device when changing views
+          }}
         >
-          <List.Dropdown.Item title="Devices" value="devices" />
-          <List.Dropdown.Item title="Activities" value="activities" />
+          <List.Dropdown.Item key="devices" title="Devices" value="devices" />
+          <List.Dropdown.Item key="activities" title="Activities" value="activities" />
         </List.Dropdown>
       }
     >
       {view === "devices" ? (
-        // Show devices and their commands
-        filteredDevices.map((device) => (
-          <List.Section key={device.id} title={device.name}>
-            {device.commands.map((command) => (
+        selectedDevice ? (
+          // Show commands for selected device
+          <List.Section key={selectedDevice.id} title={`${selectedDevice.name} Commands`}>
+            {selectedDevice.commands.map((command) => {
+              const itemKey = `${selectedDevice.id}-${command.id}`;
+              return (
+                <List.Item
+                  key={itemKey}
+                  title={command.name}
+                  icon={getCommandIcon(command.name)}
+                  actions={
+                    <ActionPanel>
+                      <Action
+                        title="Send Command"
+                        onAction={() => handleCommand({
+                          name: command.name,
+                          deviceId: selectedDevice.id,
+                          id: command.id,
+                          group: command.group
+                        })}
+                      />
+                      <Action
+                        title="Back to Devices"
+                        icon={Icon.ArrowLeft}
+                        onAction={() => setSelectedDevice(null)}
+                        shortcut={{ modifiers: ["cmd"], key: "[" }}
+                      />
+                    </ActionPanel>
+                  }
+                />
+              );
+            })}
+          </List.Section>
+        ) : (
+          // Show list of devices
+          <List.Section key="devices" title="Devices">
+            {filteredDevices.map((device) => (
               <List.Item
-                key={`${device.id}-${command.id}`}
-                title={command.name}
-                icon={getCommandIcon(command.name)}
+                key={device.id}
+                title={device.name}
+                subtitle={`${device.commands.length} commands`}
+                icon={Icon.TV}
                 actions={
                   <ActionPanel>
                     <Action
-                      title="Send Command"
-                      onAction={() => handleCommand(command)}
+                      title="View Commands"
+                      onAction={() => setSelectedDevice(device)}
                     />
                   </ActionPanel>
                 }
               />
             ))}
           </List.Section>
-        ))
+        )
       ) : (
-        // Show activities
-        <List.Section title="Activities">
+        <List.Section key="activities" title="Activities">
           {filteredActivities.map((activity) => (
             <List.Item
               key={activity.id}
               title={activity.name}
-              icon={activity.isCurrent ? Icon.CheckCircle : Icon.Circle}
-              accessories={[
-                activity.isCurrent && { text: "Current", icon: Icon.Star }
-              ].filter(Boolean)}
+              icon={currentActivity?.id === activity.id ? Icon.CheckCircle : Icon.Circle}
               actions={
                 <ActionPanel>
                   <Action
-                    title="Start Activity"
-                    onAction={() => {
-                      showToast({
-                        style: Toast.Style.Animated,
-                        title: "Starting activity",
-                        message: activity.name
-                      });
-                    }}
+                    title={currentActivity?.id === activity.id ? "Stop Activity" : "Start Activity"}
+                    onAction={() => handleActivity(activity)}
                   />
                 </ActionPanel>
               }

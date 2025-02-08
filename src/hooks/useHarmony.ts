@@ -61,7 +61,6 @@ function useHarmonyState(): HarmonyContextState {
   const discover = useCallback(async () => {
     // Prevent multiple discoveries
     if (isDiscovering.current) {
-      Logger.warn("Discovery already in progress");
       return;
     }
 
@@ -90,6 +89,11 @@ function useHarmonyState(): HarmonyContextState {
         });
       });
 
+      if (!isDiscovering.current) {
+        // Discovery was cancelled
+        return;
+      }
+
       setHubs(discoveredHubs);
       
       if (discoveredHubs.length === 0) {
@@ -116,6 +120,10 @@ function useHarmonyState(): HarmonyContextState {
         });
       }
     } catch (error) {
+      if (!isDiscovering.current) {
+        // Discovery was cancelled
+        return;
+      }
       Logger.error("Discovery failed:", error);
       setError(error as Error);
       setLoadingState({
@@ -239,8 +247,13 @@ function useHarmonyState(): HarmonyContextState {
 
   // Start discovery on mount
   useEffect(() => {
+    // Start discovery
     discover();
+
+    // Cleanup function
     return () => {
+      // Cancel any ongoing discovery
+      isDiscovering.current = false;
       manager.cleanup().catch(error => {
         Logger.error("Failed to cleanup:", error);
       });
