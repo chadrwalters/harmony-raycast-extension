@@ -3,10 +3,11 @@ import { useMemo, useState, useCallback } from "react";
 import { List, Icon, ActionPanel, Action, showToast, Toast } from "@raycast/api";
 
 // Types
-import { HarmonyDevice } from "../types/harmony";
+import { HarmonyDevice, HarmonyCommand } from "../types/harmony";
 import { useHarmony } from "../hooks/useHarmony";
 import { Logger } from "../services/logger";
 import { FeedbackState, ErrorStates, LoadingStates } from "./FeedbackState";
+import { HarmonyStage } from "../types/harmony";
 
 interface DeviceListProps {
   /** Optional filter for device types */
@@ -18,7 +19,7 @@ interface DeviceListProps {
  * Supports filtering and command execution.
  */
 export function DeviceList({ deviceType }: DeviceListProps): JSX.Element {
-  const { hub, devices, error, isLoading, executeCommand } = useHarmony();
+  const { selectedHub, devices, error, loadingState, executeCommand } = useHarmony();
   const [searchText, setSearchText] = useState("");
 
   // Memoize filtered devices to prevent unnecessary recalculations
@@ -32,7 +33,8 @@ export function DeviceList({ deviceType }: DeviceListProps): JSX.Element {
     if (searchText) {
       const searchLower = searchText.toLowerCase();
       result = result.filter(device => 
-        device.name.toLowerCase().includes(searchLower)
+        device.name.toLowerCase().includes(searchLower) ||
+        device.commands.some(cmd => cmd.label.toLowerCase().includes(searchLower))
       );
     }
     
@@ -40,76 +42,74 @@ export function DeviceList({ deviceType }: DeviceListProps): JSX.Element {
   }, [devices, deviceType, searchText]);
 
   // Memoize command handler to prevent recreation on each render
-  const handleCommand = useCallback(async (device: HarmonyDevice, command: string) => {
+  const handleCommand = useCallback(async (device: HarmonyDevice, command: HarmonyCommand) => {
     try {
       await showToast({
         style: Toast.Style.Animated,
-        title: `Sending command ${command} to ${device.name}`,
+        title: `Sending command ${command.label} to ${device.name}`,
       });
 
-      await executeCommand(device.id, command);
+      await executeCommand({
+        id: command.id,
+        name: command.name,
+        label: command.label || command.name,
+        deviceId: device.id,
+        group: command.group || "IRCommand"
+      });
 
       await showToast({
         style: Toast.Style.Success,
-        title: `Command sent successfully`,
+        title: "Command sent successfully",
       });
     } catch (error) {
-      Logger.error("Failed to execute device command", { error, deviceId: device.id, command });
+      Logger.error("Failed to execute command", error);
       await showToast({
         style: Toast.Style.Failure,
         title: "Failed to execute command",
-        message: error instanceof Error ? error.message : String(error),
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }, [executeCommand]);
 
+  if (!selectedHub) {
+    return <FeedbackState {...ErrorStates.NO_HUB_SELECTED} />;
+  }
+
   if (error) {
-    return <FeedbackState {...ErrorStates.COMMAND_FAILED} description={error.message} />;
+    return <FeedbackState {...ErrorStates.GENERAL_ERROR} error={error} />;
   }
 
-  if (!hub) {
-    return <FeedbackState {...ErrorStates.NO_HUBS_FOUND} />;
-  }
-
-  if (isLoading) {
+  if (loadingState.stage === HarmonyStage.LOADING_DEVICES) {
     return <FeedbackState {...LoadingStates.LOADING_DEVICES} />;
   }
 
   return (
     <List
-      isLoading={isLoading}
       searchText={searchText}
       onSearchTextChange={setSearchText}
-      navigationTitle={`${hub.name} - Devices`}
-      searchBarPlaceholder="Search devices..."
+      isLoading={loadingState.stage !== HarmonyStage.CONNECTED}
+      searchBarPlaceholder="Search devices and commands..."
     >
-      {filteredDevices.length === 0 ? (
-        <FeedbackState
-          title="No Devices Found"
-          description={searchText ? "Try adjusting your search" : "No devices available"}
-          icon={Icon.ExclamationMark}
+      {filteredDevices.map((device) => (
+        <List.Item
+          key={device.id}
+          icon={Icon.Devices}
+          title={device.name}
+          subtitle={device.type}
+          accessories={[{ text: `${device.commands.length} commands` }]}
+          actions={
+            <ActionPanel>
+              {device.commands.map((command) => (
+                <Action
+                  key={command.id}
+                  title={command.label}
+                  onAction={() => handleCommand(device, command)}
+                />
+              ))}
+            </ActionPanel>
+          }
         />
-      ) : (
-        filteredDevices.map((device) => (
-          <List.Item
-            key={device.id}
-            title={device.name}
-            subtitle={device.type}
-            icon={Icon.Monitor}
-            actions={
-              <ActionPanel>
-                {device.commands.map((command) => (
-                  <Action
-                    key={command.toString()}
-                    title={command.toString()}
-                    onAction={() => handleCommand(device, command.toString())}
-                  />
-                ))}
-              </ActionPanel>
-            }
-          />
-        ))
-      )}
+      ))}
     </List>
   );
 }

@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useState, createContext, useContext, useRef } from "react";
-import { HarmonyHub, HarmonyDevice, HarmonyActivity, HarmonyCommand, LoadingState } from "../types/harmony";
+import { 
+  HarmonyHub, 
+  HarmonyDevice, 
+  HarmonyActivity, 
+  HarmonyCommand, 
+  LoadingState, 
+  HarmonyStage 
+} from "../types/harmony";
 import { HarmonyManager } from "../services/harmony/harmonyManager";
 import { HarmonyClient } from "../services/harmony/harmonyClient";
 import { HarmonyError, ErrorCategory } from "../types/errors";
@@ -15,13 +22,15 @@ interface HarmonyContextState {
   devices: HarmonyDevice[];
   activities: HarmonyActivity[];
   currentActivity: HarmonyActivity | null;
-  error: Error | null;
+  error: HarmonyError | null;
   loadingState: LoadingState;
   connect: (hub: HarmonyHub) => Promise<void>;
   disconnect: () => Promise<void>;
   refresh: () => Promise<void>;
   executeCommand: (command: HarmonyCommand) => Promise<void>;
   clearCache: () => Promise<void>;
+  startActivity: (activityId: string) => Promise<void>;
+  stopActivity: () => Promise<void>;
 }
 
 const HarmonyContext = createContext<HarmonyContextState | null>(null);
@@ -48,9 +57,9 @@ function useHarmonyState(): HarmonyContextState {
   const [devices, setDevices] = useState<HarmonyDevice[]>([]);
   const [activities, setActivities] = useState<HarmonyActivity[]>([]);
   const [currentActivity, setCurrentActivity] = useState<HarmonyActivity | null>(null);
-  const [error, setError] = useState<Error | null>(null);
+  const [error, setError] = useState<HarmonyError | null>(null);
   const [loadingState, setLoadingState] = useState<LoadingState>({
-    stage: "DISCOVERING",
+    stage: HarmonyStage.INITIAL,
     message: "Starting hub discovery",
     progress: 0
   });
@@ -71,7 +80,7 @@ function useHarmonyState(): HarmonyContextState {
       
       // Show initial loading state
       setLoadingState({
-        stage: "DISCOVERING",
+        stage: HarmonyStage.DISCOVERING,
         message: "Searching for Harmony Hubs...",
         progress: 0.1
       });
@@ -84,7 +93,7 @@ function useHarmonyState(): HarmonyContextState {
 
       const discoveredHubs = await manager.startDiscovery((progress, message) => {
         setLoadingState({
-          stage: "DISCOVERING",
+          stage: HarmonyStage.DISCOVERING,
           message,
           progress: Math.max(0.1, progress)
         });
@@ -98,45 +107,38 @@ function useHarmonyState(): HarmonyContextState {
       setHubs(discoveredHubs);
       
       if (discoveredHubs.length === 0) {
+        const error = new HarmonyError(
+          "No Harmony Hubs found",
+          ErrorCategory.HUB_COMMUNICATION
+        );
+        setError(error);
         setLoadingState({
-          stage: "COMPLETE",
-          message: "No Harmony Hubs found",
+          stage: HarmonyStage.ERROR,
+          message: error.message,
           progress: 1
         });
-        await showToast({
-          style: Toast.Style.Failure,
-          title: "No Harmony Hubs found",
-          message: "Make sure your hub is powered on and connected to the network"
-        });
-      } else {
-        setLoadingState({
-          stage: "COMPLETE",
-          message: `Found ${discoveredHubs.length} Harmony Hub${discoveredHubs.length > 1 ? 's' : ''}`,
-          progress: 1
-        });
-        await showToast({
-          style: Toast.Style.Success,
-          title: "Found Harmony Hub",
-          message: discoveredHubs[0].name
-        });
+        throw error;
       }
-    } catch (error) {
-      if (!isDiscovering.current) {
-        // Discovery was cancelled
-        return;
-      }
-      Logger.error("Discovery failed:", error);
-      setError(error as Error);
+
       setLoadingState({
-        stage: "ERROR",
-        message: "Discovery failed",
-        progress: 0
+        stage: HarmonyStage.CONNECTED,
+        message: "Hubs discovered successfully",
+        progress: 1
       });
-      await showToast({
-        style: Toast.Style.Failure,
-        title: "Discovery failed",
-        message: (error as Error).message
+
+    } catch (err) {
+      const error = new HarmonyError(
+        "Failed to discover hubs",
+        ErrorCategory.HUB_COMMUNICATION,
+        err instanceof Error ? err : undefined
+      );
+      setError(error);
+      setLoadingState({
+        stage: HarmonyStage.ERROR,
+        message: error.message,
+        progress: 1
       });
+      Logger.error("Hub discovery failed", error);
     } finally {
       isDiscovering.current = false;
     }
@@ -145,142 +147,254 @@ function useHarmonyState(): HarmonyContextState {
   // Connect to a hub
   const connect = useCallback(async (hub: HarmonyHub) => {
     try {
+      setError(null);
       setLoadingState({
-        stage: "CONNECTING",
-        message: `Connecting to ${hub.name}`,
+        stage: HarmonyStage.CONNECTING,
+        message: `Connecting to ${hub.name}...`,
         progress: 0
       });
 
-      await showToast({
-        style: Toast.Style.Animated,
-        title: `Connecting to ${hub.name}`
-      });
-
-      // Create and connect client
+      // Create and connect to the client
       const newClient = new HarmonyClient(hub);
       await newClient.connect();
       
       setClient(newClient);
       setSelectedHub(hub);
 
-      // Load devices and activities
+      // Load devices
       setLoadingState({
-        stage: "LOADING",
-        message: "Loading devices and activities",
-        progress: 0.5
+        stage: HarmonyStage.LOADING_DEVICES,
+        message: "Loading devices...",
+        progress: 0.3
       });
-
-      const [hubDevices, hubActivities] = await Promise.all([
-        newClient.getDevices(),
-        newClient.getActivities()
-      ]);
-
+      const hubDevices = await newClient.getDevices();
       setDevices(hubDevices);
-      setActivities(hubActivities);
-      
+
+      // Load activities
       setLoadingState({
-        stage: "COMPLETE",
-        message: "Ready",
+        stage: HarmonyStage.LOADING_ACTIVITIES,
+        message: "Loading activities...",
+        progress: 0.6
+      });
+      const hubActivities = await newClient.getActivities();
+      setActivities(hubActivities);
+
+      // Get current activity
+      const current = await newClient.getCurrentActivity();
+      setCurrentActivity(current);
+
+      setLoadingState({
+        stage: HarmonyStage.CONNECTED,
+        message: "Connected successfully",
         progress: 1
       });
 
-      await showToast({
-        style: Toast.Style.Success,
-        title: "Connected",
-        message: `${hub.name} ready to use`
-      });
-
-    } catch (error) {
-      Logger.error("Connection failed:", error);
-      setError(error as Error);
+    } catch (err) {
+      const error = new HarmonyError(
+        "Failed to connect to hub",
+        ErrorCategory.HUB_COMMUNICATION,
+        err instanceof Error ? err : undefined
+      );
+      setError(error);
       setLoadingState({
-        stage: "ERROR",
-        message: "Connection failed",
-        progress: 0
+        stage: HarmonyStage.ERROR,
+        message: error.message,
+        progress: 1
       });
-      await showToast({
-        style: Toast.Style.Failure,
-        title: "Connection failed",
-        message: (error as Error).message
-      });
-      throw error;
+      Logger.error("Hub connection failed", error);
     }
   }, []);
 
-  // Disconnect from current hub
+  // Disconnect from hub
   const disconnect = useCallback(async () => {
     if (client) {
-      await client.disconnect();
-      setClient(null);
-      setSelectedHub(null);
-      setDevices([]);
-      setActivities([]);
-      setCurrentActivity(null);
-      await showToast({
-        style: Toast.Style.Success,
-        title: "Disconnected from hub"
-      });
+      try {
+        await client.disconnect();
+        setLoadingState({
+          stage: HarmonyStage.INITIAL,
+          message: "Disconnected",
+          progress: 0
+        });
+      } catch (err) {
+        const error = new HarmonyError(
+          "Failed to disconnect",
+          ErrorCategory.HUB_COMMUNICATION,
+          err instanceof Error ? err : undefined
+        );
+        Logger.error("Hub disconnection failed", error);
+      } finally {
+        setClient(null);
+        setSelectedHub(null);
+        setDevices([]);
+        setActivities([]);
+        setCurrentActivity(null);
+        setError(null);
+      }
     }
   }, [client]);
 
   // Execute a command
   const executeCommand = useCallback(async (command: HarmonyCommand) => {
     if (!client) {
-      throw new HarmonyError("Not connected to a hub", ErrorCategory.STATE);
+      throw new HarmonyError("No hub selected", ErrorCategory.STATE);
     }
+
     try {
-      await client.executeCommand(command);
-      await showToast({
-        style: Toast.Style.Success,
-        title: "Command sent",
-        message: command.name
+      Logger.debug("Sending command to hub", { command });
+      setLoadingState({
+        stage: HarmonyStage.EXECUTING_COMMAND,
+        message: `Sending ${command.name}...`,
+        progress: 0.5
       });
-    } catch (error) {
-      Logger.error("Command failed:", error);
-      await showToast({
-        style: Toast.Style.Failure,
-        title: "Command failed",
-        message: (error as Error).message
+      await client.executeCommand(command);
+      setLoadingState({
+        stage: HarmonyStage.CONNECTED,
+        message: "Command sent successfully",
+        progress: 1
+      });
+    } catch (err) {
+      const error = new HarmonyError(
+        "Failed to execute command",
+        ErrorCategory.COMMAND_EXECUTION,
+        err instanceof Error ? err : undefined
+      );
+      setError(error);
+      setLoadingState({
+        stage: HarmonyStage.ERROR,
+        message: error.message,
+        progress: 1
       });
       throw error;
     }
   }, [client]);
 
-  // Clear cache and refresh
-  const clearCache = useCallback(async () => {
+  // Refresh hub state
+  const refresh = useCallback(async () => {
+    if (!client || !selectedHub) {
+      return;
+    }
+
     try {
-      await manager.clearCache();
-      await showToast({
-        style: Toast.Style.Success,
-        title: "Cache cleared",
-        message: "All cached data has been removed"
+      setError(null);
+      setLoadingState({
+        stage: HarmonyStage.REFRESHING,
+        message: "Refreshing hub state...",
+        progress: 0
       });
-      await discover();
-    } catch (error) {
-      Logger.error("Failed to clear cache:", error);
-      await showToast({
-        style: Toast.Style.Failure,
-        title: "Failed to clear cache",
-        message: (error as Error).message
+
+      const [hubDevices, hubActivities, current] = await Promise.all([
+        client.getDevices(),
+        client.getActivities(),
+        client.getCurrentActivity()
+      ]);
+
+      setDevices(hubDevices);
+      setActivities(hubActivities);
+      setCurrentActivity(current);
+
+      setLoadingState({
+        stage: HarmonyStage.CONNECTED,
+        message: "Refresh complete",
+        progress: 1
+      });
+    } catch (err) {
+      const error = new HarmonyError(
+        "Failed to refresh hub state",
+        ErrorCategory.HUB_COMMUNICATION,
+        err instanceof Error ? err : undefined
+      );
+      setError(error);
+      setLoadingState({
+        stage: HarmonyStage.ERROR,
+        message: error.message,
+        progress: 1
+      });
+      Logger.error("Hub refresh failed", error);
+    }
+  }, [client, selectedHub]);
+
+  // Start an activity
+  const startActivity = useCallback(async (activityId: string) => {
+    if (!client) {
+      throw new HarmonyError("No hub selected", ErrorCategory.STATE);
+    }
+
+    try {
+      setLoadingState({
+        stage: HarmonyStage.STARTING_ACTIVITY,
+        message: `Starting activity ${activityId}...`,
+        progress: 0.5
+      });
+      await client.startActivity(activityId);
+      setLoadingState({
+        stage: HarmonyStage.CONNECTED,
+        message: "Activity started successfully",
+        progress: 1
+      });
+    } catch (err) {
+      const error = new HarmonyError(
+        "Failed to start activity",
+        ErrorCategory.ACTIVITY_START,
+        err instanceof Error ? err : undefined
+      );
+      setError(error);
+      setLoadingState({
+        stage: HarmonyStage.ERROR,
+        message: error.message,
+        progress: 1
       });
       throw error;
     }
-  }, [discover]);
+  }, [client]);
 
-  // Start discovery on mount
-  useEffect(() => {
-    // Start discovery
-    discover();
+  // Stop the current activity
+  const stopActivity = useCallback(async () => {
+    if (!client) {
+      throw new HarmonyError("No hub selected", ErrorCategory.STATE);
+    }
 
-    // Cleanup function
-    return () => {
-      // Cancel any ongoing discovery
-      isDiscovering.current = false;
-      manager.cleanup().catch(error => {
-        Logger.error("Failed to cleanup:", error);
+    try {
+      setLoadingState({
+        stage: HarmonyStage.STOPPING_ACTIVITY,
+        message: "Stopping activity...",
+        progress: 0.5
       });
+      await client.stopActivity();
+      setLoadingState({
+        stage: HarmonyStage.CONNECTED,
+        message: "Activity stopped successfully",
+        progress: 1
+      });
+    } catch (err) {
+      const error = new HarmonyError(
+        "Failed to stop activity",
+        ErrorCategory.ACTIVITY_STOP,
+        err instanceof Error ? err : undefined
+      );
+      setError(error);
+      setLoadingState({
+        stage: HarmonyStage.ERROR,
+        message: error.message,
+        progress: 1
+      });
+      throw error;
+    }
+  }, [client]);
+
+  // Clear cache and rediscover
+  const clearCache = useCallback(async () => {
+    await disconnect();
+    await manager.clearCache();
+    await discover();
+  }, [disconnect, discover]);
+
+  // Initial discovery
+  useEffect(() => {
+    discover();
+    return () => {
+      isDiscovering.current = false;
     };
-  }, []); // Only run on mount
+  }, [discover]);
 
   return {
     hubs,
@@ -292,9 +406,11 @@ function useHarmonyState(): HarmonyContextState {
     loadingState,
     connect,
     disconnect,
-    refresh: discover,
+    refresh,
     executeCommand,
-    clearCache
+    clearCache,
+    startActivity,
+    stopActivity,
   };
 }
 

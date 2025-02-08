@@ -3,7 +3,7 @@
  * @module
  */
 
-import { createMachine, assign } from "xstate";
+import { assign, createMachine } from "xstate";
 import { HarmonyHub, HarmonyDevice, HarmonyActivity } from "../../types/harmony";
 import { Logger } from "../logger";
 import { ErrorCategory } from "../../types/errors";
@@ -31,37 +31,45 @@ export enum HarmonyState {
  */
 export enum HarmonyEvent {
   /** Start hub discovery */
-  START_DISCOVERY = "start_discovery",
+  START_DISCOVERY = "START_DISCOVERY",
   /** Hub discovered */
-  HUB_DISCOVERED = "hub_discovered",
+  HUB_DISCOVERED = "HUB_DISCOVERED",
   /** Start connection */
-  START_CONNECTION = "start_connection",
+  START_CONNECTION = "START_CONNECTION",
   /** Connection established */
-  CONNECTION_ESTABLISHED = "connection_established",
+  CONNECTION_ESTABLISHED = "CONNECTION_ESTABLISHED",
   /** Start command execution */
-  START_EXECUTION = "start_execution",
+  START_EXECUTION = "START_EXECUTION",
   /** Command completed */
-  EXECUTION_COMPLETE = "execution_complete",
+  EXECUTION_COMPLETE = "EXECUTION_COMPLETE",
   /** Error occurred */
-  ERROR = "error",
+  ERROR = "ERROR",
   /** Reset state */
-  RESET = "reset",
+  RESET = "RESET"
 }
 
 /**
  * Context for the state machine.
  */
-export interface HarmonyContext {
+interface HarmonyContext {
   hub?: HarmonyHub;
   device?: HarmonyDevice;
-  command?: any;
-  error?: string | null;
+  error?: Error;
   hubs: HarmonyHub[];
   selectedHub: HarmonyHub | null;
   devices: HarmonyDevice[];
   activities: HarmonyActivity[];
-  currentActivity: string | null;
 }
+
+type HarmonyEvents =
+  | { type: HarmonyEvent.START_DISCOVERY }
+  | { type: HarmonyEvent.START_CONNECTION; hub: HarmonyHub }
+  | { type: HarmonyEvent.HUB_DISCOVERED; hub: HarmonyHub }
+  | { type: HarmonyEvent.CONNECTION_ESTABLISHED }
+  | { type: HarmonyEvent.START_EXECUTION }
+  | { type: HarmonyEvent.EXECUTION_COMPLETE }
+  | { type: HarmonyEvent.ERROR; error: Error }
+  | { type: HarmonyEvent.RESET };
 
 /**
  * State machine for managing Harmony Hub operations.
@@ -70,82 +78,131 @@ export interface HarmonyContext {
 export const harmonyMachine = createMachine({
   id: "harmony",
   initial: "idle",
+  types: {} as {
+    context: HarmonyContext;
+    events: HarmonyEvents;
+  },
   context: {
     hubs: [],
     selectedHub: null,
     devices: [],
-    activities: [],
-    currentActivity: null,
-    error: null,
-  } as HarmonyContext,
+    activities: []
+  },
   states: {
     idle: {
       on: {
         [HarmonyEvent.START_DISCOVERY]: "discovering",
         [HarmonyEvent.START_CONNECTION]: {
           target: "connecting",
-          cond: (context: HarmonyContext) => !!context.selectedHub,
-        },
-      },
+          actions: [
+            assign({
+              selectedHub: ({ event }) => {
+                if (event.type === HarmonyEvent.START_CONNECTION) {
+                  return event.hub;
+                }
+                return null;
+              }
+            })
+          ]
+        }
+      }
     },
     discovering: {
       on: {
         [HarmonyEvent.HUB_DISCOVERED]: {
-          target: "idle",
-          actions: assign({
-            hubs: (context, event) => [...context.hubs, event.hub],
-          }),
+          actions: [
+            assign({
+              hubs: ({ context, event }) => {
+                if (event.type === HarmonyEvent.HUB_DISCOVERED) {
+                  return [...context.hubs, event.hub];
+                }
+                return context.hubs;
+              }
+            })
+          ]
         },
         [HarmonyEvent.ERROR]: {
           target: "error",
-          actions: assign({
-            error: (_, event) => event.error,
-          }),
-        },
-      },
+          actions: [
+            assign({
+              error: ({ event }) => {
+                if (event.type === HarmonyEvent.ERROR) {
+                  return event.error;
+                }
+                return undefined;
+              }
+            })
+          ]
+        }
+      }
     },
     connecting: {
       on: {
         [HarmonyEvent.CONNECTION_ESTABLISHED]: "connected",
         [HarmonyEvent.ERROR]: {
           target: "error",
-          actions: assign({
-            error: (_, event) => event.error,
-          }),
-        },
-      },
+          actions: [
+            assign({
+              error: ({ event }) => {
+                if (event.type === HarmonyEvent.ERROR) {
+                  return event.error;
+                }
+                return undefined;
+              }
+            })
+          ]
+        }
+      }
     },
     connected: {
       on: {
         [HarmonyEvent.START_EXECUTION]: "executing",
         [HarmonyEvent.ERROR]: {
           target: "error",
-          actions: assign({
-            error: (_, event) => event.error,
-          }),
-        },
-      },
+          actions: [
+            assign({
+              error: ({ event }) => {
+                if (event.type === HarmonyEvent.ERROR) {
+                  return event.error;
+                }
+                return undefined;
+              }
+            })
+          ]
+        }
+      }
     },
     executing: {
       on: {
         [HarmonyEvent.EXECUTION_COMPLETE]: "connected",
         [HarmonyEvent.ERROR]: {
           target: "error",
-          actions: assign({
-            error: (_, event) => event.error,
-          }),
-        },
-      },
+          actions: [
+            assign({
+              error: ({ event }) => {
+                if (event.type === HarmonyEvent.ERROR) {
+                  return event.error;
+                }
+                return undefined;
+              }
+            })
+          ]
+        }
+      }
     },
     error: {
       on: {
         [HarmonyEvent.RESET]: {
           target: "idle",
-          actions: assign({
-            error: () => null,
-          }),
-        },
-      },
-    },
-  },
+          actions: [
+            assign({
+              error: () => undefined,
+              selectedHub: () => null,
+              hubs: () => []
+            })
+          ]
+        }
+      }
+    }
+  }
 });

@@ -1,7 +1,8 @@
 import { List, Icon, ActionPanel, Action, showToast, Toast, getPreferenceValues } from "@raycast/api";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useHarmony } from "../hooks/useHarmony";
-import { HarmonyDevice, HarmonyActivity, HarmonyHub } from "../types/harmony";
+import { HarmonyDevice, HarmonyActivity, HarmonyHub, HarmonyStage } from "../types/harmony";
+import type { HarmonyCommand } from "../types/harmony";
 import { Logger } from "../services/logger";
 import { FeedbackState } from "./FeedbackState";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -24,7 +25,9 @@ export function HarmonyCommand(): JSX.Element {
     disconnect,
     refresh,
     executeCommand,
-    clearCache
+    clearCache,
+    startActivity,
+    stopActivity
   } = useHarmony();
 
   const [searchText, setSearchText] = useState("");
@@ -42,7 +45,7 @@ export function HarmonyCommand(): JSX.Element {
       showToast({
         style: Toast.Style.Failure,
         title: "Failed to discover hubs",
-        message: error.message
+        message: error instanceof Error ? error.message : "Unknown error"
       });
     });
   }, [refresh]);
@@ -104,20 +107,26 @@ export function HarmonyCommand(): JSX.Element {
       showToast({
         style: Toast.Style.Failure,
         title: "Failed to connect",
-        message: error.message
+        message: error instanceof Error ? error.message : "Unknown error"
       });
     }
   }, [connect, defaultView]);
 
   // Handle command execution
-  const handleCommand = useCallback(async (command: { name: string; deviceId: string; id: string; group: string }) => {
+  const handleCommand = useCallback(async (command: { name: string; deviceId: string; id: string; group?: string; label?: string }) => {
     try {
       Logger.debug("Executing command:", {
         command,
         device: selectedDevice?.name,
         deviceId: selectedDevice?.id
       });
-      await executeCommand(command);
+      await executeCommand({
+        name: command.name,
+        deviceId: command.deviceId,
+        id: command.id,
+        label: command.label || command.name,
+        group: command.group || "IRCommand"
+      });
       showToast({
         style: Toast.Style.Success,
         title: "Command sent",
@@ -128,26 +137,51 @@ export function HarmonyCommand(): JSX.Element {
       showToast({
         style: Toast.Style.Failure,
         title: "Command failed",
-        message: error.message
+        message: error instanceof Error ? error.message : "Unknown error"
       });
     }
   }, [executeCommand, selectedDevice]);
 
   const handleActivity = useCallback(async (activity: HarmonyActivity) => {
     try {
-      // Add activity handling logic here
+      const isCurrentActivity = currentActivity?.id === activity.id;
+      
+      if (isCurrentActivity) {
+        Logger.debug("Stopping activity", { activityId: activity.id });
+        await stopActivity();
+        showToast({
+          style: Toast.Style.Success,
+          title: "Activity stopped",
+          message: activity.name
+        });
+      } else {
+        Logger.debug("Starting activity", { activityId: activity.id });
+        await startActivity(activity.id);
+        showToast({
+          style: Toast.Style.Success,
+          title: "Activity started",
+          message: activity.name
+        });
+      }
+
+      // Refresh to update current activity
+      await refresh();
     } catch (error) {
       Logger.error("Failed to handle activity:", error);
       showToast({
         style: Toast.Style.Failure,
         title: "Activity failed",
-        message: error.message
+        message: error instanceof Error ? error.message : "Unknown error"
       });
     }
-  }, []);
+  }, [currentActivity, startActivity, stopActivity, refresh]);
 
   if (error) {
-    return <FeedbackState error={error} onRetry={refresh} />;
+    return <FeedbackState 
+      error={error} 
+      onRetry={refresh}
+      title="Failed to load Harmony Hub"
+    />;
   }
 
   useEffect(() => {
@@ -160,7 +194,7 @@ export function HarmonyCommand(): JSX.Element {
   }, [view, filteredDevices.length, filteredActivities.length, loadingState.stage]);
 
   // Show loading state
-  if (loadingState.stage === "DISCOVERING" && hubs.length === 0) {
+  if (loadingState.stage === HarmonyStage.DISCOVERING && hubs.length === 0) {
     return (
       <List isLoading={true}>
         <List.EmptyView
@@ -179,7 +213,7 @@ export function HarmonyCommand(): JSX.Element {
       <List
         searchBarPlaceholder="Search hubs..."
         onSearchTextChange={setSearchText}
-        isLoading={loadingState.stage === "DISCOVERING"}
+        isLoading={loadingState.stage === HarmonyStage.DISCOVERING}
       >
         <List.Section key="hub-selection" title="Available Hubs">
           {hubs.map((hub) => (
@@ -264,7 +298,7 @@ export function HarmonyCommand(): JSX.Element {
                             name: command.name,
                             deviceId: selectedDevice.id,
                             id: command.id,
-                            group: command.group
+                            group: command.group || "Default"
                           })}
                         />
                         <Action
@@ -287,7 +321,7 @@ export function HarmonyCommand(): JSX.Element {
                 key={device.id}
                 title={device.name}
                 subtitle={`${device.commands.length} commands`}
-                icon={Icon.TV}
+                icon={Icon.Devices}
                 actions={
                   <ActionPanel>
                     <Action
@@ -309,7 +343,16 @@ export function HarmonyCommand(): JSX.Element {
       <List
         searchBarPlaceholder="Search commands..."
         onSearchTextChange={setSearchText}
-        isLoading={loadingState.stage === "LOADING"}
+        isLoading={[
+          HarmonyStage.DISCOVERING,
+          HarmonyStage.CONNECTING,
+          HarmonyStage.LOADING_DEVICES,
+          HarmonyStage.LOADING_ACTIVITIES,
+          HarmonyStage.STARTING_ACTIVITY,
+          HarmonyStage.STOPPING_ACTIVITY,
+          HarmonyStage.EXECUTING_COMMAND,
+          HarmonyStage.REFRESHING
+        ].includes(loadingState.stage)}
       >
         {devices.map((device) => {
           // Filter commands based on search text
@@ -340,7 +383,7 @@ export function HarmonyCommand(): JSX.Element {
                           name: command.name,
                           deviceId: device.id,
                           id: command.id,
-                          group: command.group
+                          group: command.group || "Default"
                         })}
                       />
                     </ActionPanel>

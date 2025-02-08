@@ -53,6 +53,8 @@ export interface HarmonyCommand {
   label: string;
   /** ID of the device this command belongs to */
   deviceId: string;
+  /** Optional command group for categorization */
+  group?: string;
 }
 
 /**
@@ -89,12 +91,26 @@ export interface HarmonyActivity {
  * Stage of the Harmony Hub connection process
  */
 export enum HarmonyStage {
-  /** Discovering Harmony Hubs on the network */
+  /** Initial state */
+  INITIAL = "initial",
+  /** Discovering hubs */
   DISCOVERING = "discovering",
-  /** Connecting to a selected hub */
+  /** Connecting to hub */
   CONNECTING = "connecting",
+  /** Loading devices */
+  LOADING_DEVICES = "loading_devices",
+  /** Loading activities */
+  LOADING_ACTIVITIES = "loading_activities",
+  /** Starting activity */
+  STARTING_ACTIVITY = "starting_activity",
+  /** Stopping activity */
+  STOPPING_ACTIVITY = "stopping_activity",
+  /** Executing command */
+  EXECUTING_COMMAND = "executing_command",
+  /** Refreshing state */
+  REFRESHING = "refreshing",
   /** Connected and ready */
-  COMPLETE = "complete",
+  CONNECTED = "connected",
   /** Error state */
   ERROR = "error"
 }
@@ -168,10 +184,17 @@ export type HubDiscoveryHandler = (hub: HarmonyHub) => void;
  * Status of a command in the queue
  */
 export enum CommandStatus {
+  /** Command is queued for execution */
+  QUEUED = "QUEUED",
+  /** Command is pending execution */
   PENDING = "PENDING",
+  /** Command is currently executing */
   EXECUTING = "EXECUTING",
+  /** Command has completed successfully */
   COMPLETED = "COMPLETED",
+  /** Command has failed */
   FAILED = "FAILED",
+  /** Command was cancelled */
   CANCELLED = "CANCELLED"
 }
 
@@ -179,21 +202,38 @@ export enum CommandStatus {
  * Command request for the queue
  */
 export interface CommandRequest {
+  /** Unique identifier for the command request */
   id: string;
+  /** Command to execute */
   command: HarmonyCommand;
+  /** Timestamp when the request was created */
   timestamp: number;
-  retries?: number;
+  /** Optional timeout in milliseconds */
   timeout?: number;
+  /** Optional number of retries */
+  retries?: number;
+  /** Optional callback when command completes successfully */
+  onComplete?: () => void;
+  /** Optional callback when command fails */
+  onError?: (error: Error) => void;
 }
 
 /**
  * Result of a command execution
  */
 export interface CommandResult {
+  /** Unique identifier matching the request */
   id: string;
+  /** Command that was executed */
   command: HarmonyCommand;
+  /** Current status of the command */
   status: CommandStatus;
+  /** Error if command failed */
   error?: Error;
-  timestamp: number;
+  /** When the command was queued */
+  queuedAt: number;
+  /** When the command started executing */
+  startedAt?: number;
+  /** When the command completed (success or failure) */
   completedAt?: number;
 }

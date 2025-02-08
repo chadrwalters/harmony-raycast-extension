@@ -229,46 +229,16 @@ export interface ErrorDisplayProps {
  * @interface HubSelectorProps
  */
 export interface HubSelectorProps {
-  /**
-   * List of available hubs
-   */
+  /** List of available Harmony Hubs */
   hubs: HarmonyHub[];
-  /**
-   * Currently selected hub
-   */
-  selectedHub?: HarmonyHub;
-  /**
-   * Action to execute when a hub is selected
-   */
-  onHubSelect: (hub: HarmonyHub) => void;
-  /**
-   * Whether the selector is currently loading
-   */
-  isLoading?: boolean;
-  /**
-   * Error state
-   */
-  error?: HarmonyError;
-  /**
-   * Currently selected hub
-   */
+  /** Currently selected hub */
   selectedHub: HarmonyHub | null;
-  /**
-   * List of available hubs
-   */
-  availableHubs: HarmonyHub[];
-  /**
-   * Callback when hub is selected
-   */
+  /** Callback when a hub is selected */
   onHubSelect: (hub: HarmonyHub) => void;
-  /**
-   * Optional loading state
-   */
+  /** Whether the component is in a loading state */
   isLoading?: boolean;
-  /**
-   * Optional error state
-   */
-  error?: Error | null;
+  /** Error state if any */
+  error?: HarmonyError;
 }
 
 /**

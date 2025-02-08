@@ -13,6 +13,8 @@ import {
   WebSocketErrorHandler,
   ActivitiesResponse,
   DevicesResponse,
+  CommandPayload,
+  ActivityPayload
 } from "../../types/websocket";
 
 // Constants for WebSocket management
@@ -22,13 +24,24 @@ const CONNECTION_TIMEOUT = 5000;
 const PING_INTERVAL = 30000;
 const MESSAGE_TIMEOUT = 5000;
 
-interface QueuedMessage {
+/**
+ * Interface for queued messages
+ */
+interface QueuedMessage<T = unknown> {
+  /** Unique message identifier */
   id: string;
+  /** Message type */
   type: WebSocketMessageType;
-  payload: any;
-  resolve: (value: WebSocketResponse<unknown>) => void;
+  /** Message payload */
+  payload: T;
+  /** Promise resolve function */
+  resolve: (value: WebSocketResponse<T>) => void;
+  /** Promise reject function */
   reject: (error: Error) => void;
+  /** Message timestamp */
   timestamp: number;
+  /** Message timeout */
+  timeout?: NodeJS.Timeout;
 }
 
 /**
@@ -42,8 +55,8 @@ export class HarmonyWebSocket extends EventEmitter {
   private eventHandler?: WebSocketEventHandler;
   private errorHandler?: WebSocketErrorHandler;
   private reconnectAttempts = 0;
-  private pingInterval: NodeJS.Timer | null = null;
-  private messageTimeouts: Map<string, NodeJS.Timer> = new Map();
+  private pingInterval?: NodeJS.Timeout;
+  private messageTimeouts: Map<string, NodeJS.Timeout> = new Map();
   private connectPromise: Promise<void> | null = null;
   private connectResolve: (() => void) | null = null;
   private connectReject: ((error: Error) => void) | null = null;
@@ -90,7 +103,7 @@ export class HarmonyWebSocket extends EventEmitter {
       try {
         Logger.debug(`Creating WebSocket connection to ${this.hub.ip}`);
         this.status = WebSocketConnectionStatus.CONNECTING;
-        this.ws = new WebSocket(`ws://${this.hub.ip}`);
+        this.ws = new WebSocket(`ws://${this.hub.ip}:${this.hub.port || 8088}`);
 
         // Set up connection timeout
         const timeout = setTimeout(() => {
@@ -109,7 +122,7 @@ export class HarmonyWebSocket extends EventEmitter {
           this.status = WebSocketConnectionStatus.CONNECTED;
           this.reconnectAttempts = 0;
           this.startPingInterval();
-          this.processMessageQueue();
+          this.processQueue();
           if (this.connectResolve) this.connectResolve();
         });
 
@@ -156,6 +169,11 @@ export class HarmonyWebSocket extends EventEmitter {
     this.pingInterval = setInterval(() => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.ping();
+      } else {
+        this.handleError(new HarmonyError(
+          "WebSocket not ready for ping",
+          ErrorCategory.WEBSOCKET
+        ));
       }
     }, PING_INTERVAL);
   }
@@ -170,7 +188,14 @@ export class HarmonyWebSocket extends EventEmitter {
       Logger.debug(`Attempting to reconnect (${this.reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})...`);
       setTimeout(() => {
         this.reconnectAttempts++;
-        this.connect().catch(Logger.error);
+        this.connect().catch(error => {
+          Logger.error("Reconnection failed:", error);
+          this.handleError(new HarmonyError(
+            "Failed to reconnect",
+            ErrorCategory.WEBSOCKET,
+            error instanceof Error ? error : undefined
+          ));
+        });
       }, RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts));
     } else {
       const error = new HarmonyError(
@@ -186,21 +211,36 @@ export class HarmonyWebSocket extends EventEmitter {
    */
   private cleanup(): void {
     if (this.ws) {
-      this.ws.removeAllListeners();
-      if (this.ws.readyState === WebSocket.OPEN) {
-        this.ws.close();
+      try {
+        this.ws.removeAllListeners();
+        if (this.ws.readyState === WebSocket.OPEN) {
+          this.ws.close();
+        }
+      } catch (error) {
+        Logger.error("Error closing WebSocket:", error);
       }
       this.ws = null;
     }
 
     if (this.pingInterval) {
       clearInterval(this.pingInterval);
-      this.pingInterval = null;
+      this.pingInterval = undefined;
     }
 
     // Clear all message timeouts
-    this.messageTimeouts.forEach(clearTimeout);
+    for (const timeout of this.messageTimeouts.values()) {
+      clearTimeout(timeout);
+    }
     this.messageTimeouts.clear();
+
+    // Reject all queued messages
+    this.messageQueue.forEach(message => {
+      message.reject(new HarmonyError(
+        "WebSocket connection closed",
+        ErrorCategory.WEBSOCKET
+      ));
+    });
+    this.messageQueue = [];
 
     this.status = WebSocketConnectionStatus.DISCONNECTED;
     this.connectPromise = null;
@@ -209,54 +249,13 @@ export class HarmonyWebSocket extends EventEmitter {
   }
 
   /**
-   * Handle incoming WebSocket messages
+   * Handle WebSocket error
    */
-  private handleMessage(data: WebSocket.Data): void {
-    try {
-      const message = JSON.parse(data.toString());
-      Logger.debug("Received WebSocket message:", message);
-
-      // Clear message timeout if it exists
-      if (message.id && this.messageTimeouts.has(message.id)) {
-        clearTimeout(this.messageTimeouts.get(message.id)!);
-        this.messageTimeouts.delete(message.id);
-      }
-
-      // Process message and resolve queue
-      if (message.id) {
-        const queueIndex = this.messageQueue.findIndex(m => m.id === message.id);
-        if (queueIndex !== -1) {
-          const { resolve } = this.messageQueue[queueIndex];
-          this.messageQueue.splice(queueIndex, 1);
-          resolve(message);
-        }
-      }
-
-      // Handle events
-      if (message.type === "event" && this.eventHandler) {
-        this.eventHandler(message);
-      }
-
-    } catch (error) {
-      Logger.error("Failed to handle WebSocket message:", error);
-      this.handleError(new HarmonyError(
-        "Failed to handle WebSocket message",
-        ErrorCategory.WEBSOCKET,
-        error instanceof Error ? error : undefined
-      ));
-    }
-  }
-
-  /**
-   * Handle WebSocket errors
-   */
-  private handleError(error: HarmonyError): void {
+  private handleError(error: Error): void {
     Logger.error("WebSocket error:", error);
     
     if (this.connectReject) {
       this.connectReject(error);
-      this.connectPromise = null;
-      this.connectResolve = null;
       this.connectReject = null;
     }
 
@@ -264,42 +263,49 @@ export class HarmonyWebSocket extends EventEmitter {
       this.errorHandler(error);
     }
 
-    this.emit("error", error);
+    this.cleanup();
   }
 
   /**
-   * Process queued messages
+   * Handle incoming WebSocket message
    */
-  private processMessageQueue(): void {
-    while (this.messageQueue.length > 0 && this.ws?.readyState === WebSocket.OPEN) {
-      const message = this.messageQueue[0];
-      
-      try {
-        this.ws.send(JSON.stringify({
-          id: message.id,
-          type: message.type,
-          payload: message.payload
-        }));
+  private handleMessage(data: WebSocket.Data): void {
+    try {
+      const message = JSON.parse(data.toString()) as WebSocketResponse<WebSocketMessageUnion>;
+      Logger.debug("Received WebSocket message:", message);
+      this.handleMessageResponse(message);
+    } catch (error) {
+      Logger.error("Error parsing WebSocket message:", error);
+    }
+  }
 
-        // Set message timeout
-        this.messageTimeouts.set(message.id, setTimeout(() => {
-          const error = new HarmonyError(
-            `Message timeout: ${message.type}`,
-            ErrorCategory.WEBSOCKET
-          );
-          message.reject(error);
-          this.messageTimeouts.delete(message.id);
-          this.messageQueue.shift();
-        }, MESSAGE_TIMEOUT));
+  private handleMessageResponse(message: WebSocketResponse<WebSocketMessageUnion>): void {
+    try {
+      const queuedMessage = this.messageQueue.find(m => m.id === message.id);
+      if (!queuedMessage) {
+        Logger.warn("Received response for unknown message:", message);
+        // If no queued message found, treat as event
+        if (message.data) {
+          this.eventHandler?.(message.data);
+        }
+        return;
+      }
 
-      } catch (error) {
-        Logger.error("Failed to send WebSocket message:", error);
-        message.reject(new HarmonyError(
-          "Failed to send WebSocket message",
-          ErrorCategory.WEBSOCKET,
-          error instanceof Error ? error : undefined
-        ));
-        this.messageQueue.shift();
+      if (message.status === "error") {
+        queuedMessage.reject(new Error(message.error || "Unknown error"));
+      } else {
+        queuedMessage.resolve(message);
+      }
+
+      // Remove from queue
+      this.messageQueue = this.messageQueue.filter(m => m.id !== message.id);
+
+      // Process next message if any
+      this.processQueue();
+    } catch (error) {
+      Logger.error("Error handling message:", error);
+      if (message.data) {
+        this.eventHandler?.(message.data);
       }
     }
   }
@@ -307,10 +313,20 @@ export class HarmonyWebSocket extends EventEmitter {
   /**
    * Send a message through the WebSocket
    */
-  async send<T>(type: WebSocketMessageType, payload: any): Promise<WebSocketResponse<T>> {
+  private async sendMessage<T>(
+    type: WebSocketMessageType,
+    payload: T
+  ): Promise<WebSocketResponse<T>> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new HarmonyError(
+        "WebSocket not connected",
+        ErrorCategory.WEBSOCKET
+      );
+    }
+
     return new Promise((resolve, reject) => {
-      const message: QueuedMessage = {
-        id: Math.random().toString(36).substring(7),
+      const message: QueuedMessage<T> = {
+        id: Math.random().toString(36).substring(2),
         type,
         payload,
         resolve,
@@ -318,156 +334,221 @@ export class HarmonyWebSocket extends EventEmitter {
         timestamp: Date.now()
       };
 
-      this.messageQueue.push(message);
+      // Set message timeout
+      message.timeout = setTimeout(() => {
+        this.messageQueue = this.messageQueue.filter(m => m.id !== message.id);
+        this.messageTimeouts.delete(message.id);
+        reject(new HarmonyError(
+          `Message timeout: ${type}`,
+          ErrorCategory.WEBSOCKET
+        ));
+      }, MESSAGE_TIMEOUT);
 
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.processMessageQueue();
-      } else {
-        this.connect().catch(reject);
+      this.messageTimeouts.set(message.id, message.timeout);
+      this.queueMessage(message);
+      try {
+        this.ws!.send(JSON.stringify({
+          id: message.id,
+          type,
+          payload
+        }));
+      } catch (error) {
+        clearTimeout(message.timeout);
+        this.messageTimeouts.delete(message.id);
+        this.messageQueue = this.messageQueue.filter(m => m.id !== message.id);
+        reject(new HarmonyError(
+          "Failed to send WebSocket message",
+          ErrorCategory.WEBSOCKET,
+          error instanceof Error ? error : undefined
+        ));
       }
     });
   }
 
+  private queueMessage<T>(message: QueuedMessage<T>): void {
+    this.messageQueue.push(message as QueuedMessage<unknown>);
+    this.processQueue();
+  }
+
+  private async processQueue(): Promise<void> {
+    while (this.messageQueue.length > 0 && this.ws?.readyState === WebSocket.OPEN) {
+      const message = this.messageQueue[0];
+      try {
+        await this.sendMessage(message.type, message.payload);
+      } catch (error) {
+        Logger.error("Failed to process queued message:", error);
+        message.reject(new HarmonyError(
+          "Failed to process queued message",
+          ErrorCategory.WEBSOCKET,
+          error instanceof Error ? error : undefined
+        ));
+      }
+      this.messageQueue.shift();
+    }
+  }
+
   /**
-   * Set event handler
+   * Set event handler for WebSocket messages
    */
   setEventHandler(handler: WebSocketEventHandler): void {
     this.eventHandler = handler;
   }
 
   /**
-   * Set error handler
+   * Set error handler for WebSocket errors
    */
   setErrorHandler(handler: WebSocketErrorHandler): void {
     this.errorHandler = handler;
   }
 
   /**
-   * Close the WebSocket connection
-   */
-  async close(): Promise<void> {
-    Logger.debug("Closing WebSocket connection...");
-    this.cleanup();
-  }
-
-  /**
-   * Get activities from the Harmony Hub
+   * Get current activities
    */
   async getActivities(): Promise<HarmonyActivity[]> {
-    const response = await this.send<HarmonyActivity[]>(WebSocketMessageType.GET_ACTIVITIES, {});
-    return (response as ActivitiesResponse).data || [];
+    const response = await this.sendMessage(WebSocketMessageType.GET_ACTIVITIES, {});
+    if (response.status === "success" && response.data) {
+      this.currentState.activities = response.data as HarmonyActivity[];
+      return this.currentState.activities;
+    }
+    throw new HarmonyError(
+      "Failed to get activities",
+      ErrorCategory.WEBSOCKET
+    );
   }
 
   /**
-   * Get devices from the Harmony Hub
+   * Get current devices
    */
   async getDevices(): Promise<HarmonyDevice[]> {
-    const response = await this.send<HarmonyDevice[]>(WebSocketMessageType.GET_DEVICES, {});
-    return (response as DevicesResponse).data || [];
+    const response = await this.sendMessage(WebSocketMessageType.GET_DEVICES, {});
+    if (response.status === "success" && response.data) {
+      this.currentState.devices = response.data as HarmonyDevice[];
+      return this.currentState.devices;
+    }
+    throw new HarmonyError(
+      "Failed to get devices",
+      ErrorCategory.WEBSOCKET
+    );
   }
 
   /**
-   * Execute a command on a device
+   * Start an activity
    */
-  public async executeCommand(deviceId: string, command: string): Promise<void> {
-    if (!this.ws || this.status !== WebSocketConnectionStatus.CONNECTED) {
+  async startActivity(activityId: string): Promise<void> {
+    Logger.debug(`Starting activity: ${activityId}`);
+    
+    // Create payload with timestamp
+    const payload: ActivityPayload = {
+      activityId,
+      timestamp: Date.now(),
+      status: "start"
+    };
+
+    // Send start activity command
+    const response = await this.sendMessage(WebSocketMessageType.START_ACTIVITY, payload);
+    if (response.status !== "success") {
       throw new HarmonyError(
-        "WebSocket is not connected",
+        "Failed to start activity",
         ErrorCategory.WEBSOCKET
       );
     }
 
-    try {
-      Logger.debug("Executing command", { deviceId, command });
-      await this.send(WebSocketMessageType.EXECUTE_COMMAND, {
-        deviceId,
-        command
-      });
-      Logger.info("Command executed successfully", { deviceId, command });
-    } catch (error) {
-      const commandError = new HarmonyError(
-        "Failed to execute command",
-        ErrorCategory.HARMONY,
-        error instanceof Error ? error : undefined
-      );
-      Logger.error("Command execution failed", commandError);
-      throw commandError;
-    }
-  }
-
-  /**
-   * Get current hub state
-   */
-  public async getCurrentState(): Promise<{ activities: HarmonyActivity[]; devices: HarmonyDevice[]; currentActivity: string | null }> {
-    try {
-      // Refresh state if needed
-      if (this.currentState.activities.length === 0) {
-        this.currentState.activities = await this.getActivities();
-      }
-      if (this.currentState.devices.length === 0) {
-        this.currentState.devices = await this.getDevices();
+    // Wait for activity to start (up to 10 seconds)
+    let attempts = 0;
+    const maxAttempts = 10;
+    while (attempts < maxAttempts) {
+      const activities = await this.getActivities();
+      const activity = activities.find(a => a.id === activityId);
+      
+      if (activity?.isCurrent) {
+        Logger.debug(`Activity ${activityId} started successfully`);
+        this.currentActivity = activityId;
+        return;
       }
 
-      return {
-        ...this.currentState,
-        currentActivity: this.currentActivity
-      };
-    } catch (error) {
-      const stateError = new HarmonyError(
-        "Failed to get current state",
-        ErrorCategory.HARMONY,
-        error instanceof Error ? error : undefined
-      );
-      Logger.error("State retrieval failed", stateError);
-      throw stateError;
+      Logger.debug(`Waiting for activity ${activityId} to start (attempt ${attempts + 1}/${maxAttempts})`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      attempts++;
     }
+
+    throw new HarmonyError(
+      "Activity start timeout",
+      ErrorCategory.WEBSOCKET
+    );
   }
 
   /**
-   * Update the current activity state
+   * Stop current activity
    */
-  private updateCurrentActivity(activityId: string | null): void {
-    this.currentActivity = activityId;
-    Logger.debug("Current activity updated", { activityId });
-  }
-
-  /**
-   * Start an activity on the Harmony Hub
-   */
-  public async startActivity(activityId: string): Promise<void> {
-    try {
-      await this.send(WebSocketMessageType.START_ACTIVITY, {
-        activityId
-      });
-      this.updateCurrentActivity(activityId);
-      Logger.info("Activity started successfully", { activityId });
-    } catch (error) {
-      const activityError = new HarmonyError(
-        "Failed to start activity",
-        ErrorCategory.HARMONY,
-        error instanceof Error ? error : undefined
+  async stopActivity(): Promise<void> {
+    if (!this.currentActivity) {
+      throw new HarmonyError(
+        "No activity is currently running",
+        ErrorCategory.STATE
       );
-      Logger.error("Activity start failed", activityError);
-      throw activityError;
     }
-  }
 
-  /**
-   * Stop the current activity on the Harmony Hub
-   */
-  public async stopActivity(): Promise<void> {
-    try {
-      await this.send(WebSocketMessageType.STOP_ACTIVITY, {});
-      this.updateCurrentActivity(null);
-      Logger.info("Activity stopped successfully");
-    } catch (error) {
-      const activityError = new HarmonyError(
+    Logger.debug(`Stopping activity: ${this.currentActivity}`);
+    
+    // Create payload with timestamp
+    const payload: ActivityPayload = {
+      activityId: this.currentActivity,
+      timestamp: Date.now(),
+      status: "stop"
+    };
+
+    // Send stop activity command
+    const response = await this.sendMessage(WebSocketMessageType.STOP_ACTIVITY, payload);
+    if (response.status !== "success") {
+      throw new HarmonyError(
         "Failed to stop activity",
-        ErrorCategory.HARMONY,
-        error instanceof Error ? error : undefined
+        ErrorCategory.WEBSOCKET
       );
-      Logger.error("Activity stop failed", activityError);
-      throw activityError;
     }
+
+    // Wait for activity to stop (up to 10 seconds)
+    let attempts = 0;
+    const maxAttempts = 10;
+    while (attempts < maxAttempts) {
+      const activities = await this.getActivities();
+      const activity = activities.find(a => a.id === this.currentActivity);
+      
+      if (!activity?.isCurrent) {
+        Logger.debug(`Activity ${this.currentActivity} stopped successfully`);
+        this.currentActivity = null;
+        return;
+      }
+
+      Logger.debug(`Waiting for activity ${this.currentActivity} to stop (attempt ${attempts + 1}/${maxAttempts})`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      attempts++;
+    }
+
+    throw new HarmonyError(
+      "Activity stop timeout",
+      ErrorCategory.WEBSOCKET
+    );
+  }
+
+  /**
+   * Execute a command
+   */
+  async executeCommand(deviceId: string, command: string): Promise<void> {
+    const payload: CommandPayload = { deviceId, command };
+    const response = await this.sendMessage(WebSocketMessageType.EXECUTE_COMMAND, payload);
+    if (response.status !== "success") {
+      throw new HarmonyError(
+        "Failed to execute command",
+        ErrorCategory.WEBSOCKET
+      );
+    }
+  }
+
+  /**
+   * Disconnect from the Harmony Hub
+   */
+  disconnect(): void {
+    Logger.debug("Disconnecting from Harmony Hub");
+    this.cleanup();
   }
 }

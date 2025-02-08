@@ -25,9 +25,9 @@ export enum WebSocketConnectionStatus {
  */
 export enum WebSocketMessageType {
   /** Request to start an activity */
-  START_ACTIVITY = "startactivity",
+  START_ACTIVITY = "startActivity",
   /** Request to stop an activity */
-  STOP_ACTIVITY = "stopactivity",
+  STOP_ACTIVITY = "stopActivity",
   /** Request to get activities */
   GET_ACTIVITIES = "getactivities",
   /** Request to get devices */
@@ -65,6 +65,10 @@ export interface CommandPayload {
 export interface ActivityPayload {
   /** Activity to control */
   activityId: string;
+  /** Optional timestamp */
+  timestamp?: number;
+  /** Optional status */
+  status?: string;
 }
 
 /**
@@ -81,6 +85,8 @@ export type WebSocketMessageUnion =
  * @interface WebSocketResponse
  */
 export interface WebSocketResponse<T> {
+  /** Unique identifier for the response */
+  id: string;
   /** Status of the response */
   status: "success" | "error";
   /** Optional response data */
@@ -93,15 +99,17 @@ export interface WebSocketResponse<T> {
  * Activity response interface
  * @interface ActivitiesResponse
  */
-export interface ActivitiesResponse {
-  /** Response data */
+export interface ActivitiesResponse extends WebSocketResponse<HarmonyActivity[]> {
+  /** List of activities */
   activities: Array<{
     /** Activity ID */
     id: string;
     /** Activity name */
     name: string;
-    /** Activity label */
-    label: string;
+    /** Activity type */
+    type: string;
+    /** Whether this activity is currently active */
+    isCurrent: boolean;
   }>;
 }
 
@@ -109,8 +117,8 @@ export interface ActivitiesResponse {
  * Device response interface
  * @interface DevicesResponse
  */
-export interface DevicesResponse {
-  /** Response data */
+export interface DevicesResponse extends WebSocketResponse<HarmonyDevice[]> {
+  /** List of devices */
   devices: Array<{
     /** Device ID */
     id: string;
@@ -120,10 +128,14 @@ export interface DevicesResponse {
     type: string;
     /** Device commands */
     commands: Array<{
+      /** Command ID */
+      id: string;
       /** Command name */
       name: string;
       /** Command label */
       label: string;
+      /** Command group */
+      group?: string;
     }>;
   }>;
 }
@@ -139,3 +151,18 @@ export type WebSocketEventHandler = (message: WebSocketMessageUnion) => void;
  * @type {WebSocketErrorHandler}
  */
 export type WebSocketErrorHandler = (error: Error) => void;
+
+/**
+ * Queued message interface
+ * @interface QueuedMessage
+ */
+export interface QueuedMessage<T> {
+  /** Unique identifier for the message */
+  id: string;
+  /** Resolve function for the message */
+  resolve: (value: WebSocketResponse<T>) => void;
+  /** Reject function for the message */
+  reject: (error: Error) => void;
+  /** Timestamp for the message */
+  timestamp: number;
+}
