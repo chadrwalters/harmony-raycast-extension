@@ -61,20 +61,20 @@ const initialContext: HarmonyContext = {
 };
 
 export const harmonyMachine = createMachine({
+  types: {} as {
+    context: HarmonyContext;
+    events: HarmonyEvents;
+  },
   id: "harmony",
   initial: "idle",
   context: initialContext,
-  schema: {
-    context: {} as HarmonyContext,
-    events: {} as HarmonyEvents,
-  },
   states: {
     idle: {
       on: {
         [HarmonyEvent.START_CONNECTION]: {
           target: "connecting",
           actions: assign({
-            selectedHub: (_, event) => (event as HarmonyStartConnectionEvent).hub,
+            selectedHub: (_, event) => event.hub,
           }),
         },
       },
@@ -83,13 +83,13 @@ export const harmonyMachine = createMachine({
       on: {
         [HarmonyEvent.HUB_DISCOVERED]: {
           actions: assign({
-            hubs: (context, event) => [...context.hubs, (event as HarmonyHubDiscoveredEvent).hub],
+            hubs: (context, event) => [...context.hubs, event.hub],
           }),
         },
         [HarmonyEvent.ERROR]: {
           target: "error",
           actions: assign({
-            error: (_, event) => (event as HarmonyErrorEvent).error,
+            error: (_, event) => event.error,
           }),
         },
       },
