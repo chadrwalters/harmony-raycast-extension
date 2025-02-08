@@ -35,11 +35,11 @@ export class Logger implements ILogger {
   /**
    * Format a log message with timestamp and context
    */
-  private static formatMessage(level: LogLevel, message: string, ...args: any[]): string {
+  private static formatMessage(level: LogLevel, message: string, ...args: (string | number | boolean | object | null | undefined)[]): string {
     const timestamp = new Date().toISOString();
     const pid = process.pid;
     const formattedArgs = args.map(arg => 
-      typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg
+      typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
     ).join(' ');
     
     return `${timestamp} [pid:${pid}] ${level}: ${message} ${formattedArgs}`.trim();
@@ -49,11 +49,16 @@ export class Logger implements ILogger {
    * Format a log message with timestamp and context
    */
   private formatMessage(level: LogLevel, message: string, data?: unknown): LogEntry {
-    const entry: LogEntry = {
-      timestamp: new Date().toISOString(),
+    const formattedMessage = Logger.formatMessage(
       level,
       message,
-      data,
+      data as string | number | boolean | object | null | undefined
+    );
+    
+    const entry: LogEntry = {
+      level,
+      message: formattedMessage,
+      timestamp: new Date().toISOString()
     };
 
     // Add to history and maintain max entries
@@ -64,7 +69,7 @@ export class Logger implements ILogger {
 
     // Always output to console for development
     const levelStr = LogLevel[level].padEnd(5);
-    console.log(Logger.formatMessage(level, message, data));
+    console.log(formattedMessage);
 
     return entry;
   }

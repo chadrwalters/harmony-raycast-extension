@@ -166,9 +166,23 @@ export enum ErrorCategory {
 import { WebSocket } from "ws";
 
 /**
+ * WebSocket message format from Harmony Hub
+ */
+export interface HarmonyMessage {
+  type: string;
+  data?: {
+    id?: string;
+    status?: string;
+    errorCode?: string;
+    errorMessage?: string;
+    [key: string]: unknown;
+  };
+}
+
+/**
  * Message handler type.
  */
-export type MessageHandler = (message: any) => void;
+export type MessageHandler = (message: HarmonyMessage) => void;
 
 /**
  * Error handler type.

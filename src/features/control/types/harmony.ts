@@ -22,15 +22,45 @@ export interface HarmonyCommand {
   deviceId: string;
 }
 
+export interface ControlGroup {
+  name: string;
+  function: {
+    name: string;
+    action: string;
+  }[];
+}
+
+export interface FixItItem {
+  id: string;
+  description: string;
+  solution: string;
+  urls?: string[];
+}
+
+export interface ActivityRule {
+  type: string;
+  condition: string;
+  action: string;
+}
+
+export interface ActivitySequence {
+  id: string;
+  name: string;
+  steps: {
+    action: string;
+    delay: number;
+  }[];
+}
+
 export interface HarmonyActivity {
   id: string;
   label: string;
   isAVActivity: boolean;
   activityTypeDisplayName: string;
-  controlGroup: any[];
-  fixit: any;
-  rules: any[];
-  sequences: any[];
+  controlGroup: ControlGroup[];
+  fixit: FixItItem[];
+  rules: ActivityRule[];
+  sequences: ActivitySequence[];
   suggestedDisplay: string;
   type: string;
   status: string;

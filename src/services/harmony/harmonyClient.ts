@@ -5,7 +5,7 @@ import getHarmonyClient from "@harmonyhub/client-ws";
 import { getPreferenceValues, LocalStorage } from "@raycast/api";
 
 // Cache constants
-const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
 interface CachedConfig {
   devices: HarmonyDevice[];
@@ -44,6 +44,37 @@ interface HarmonyCommandBody {
   command: string;
   deviceId: string;
   type: string;
+}
+
+interface CommandFunction {
+  name: string;
+  label?: string;
+  action?: {
+    command?: {
+      type?: string;
+    };
+  };
+}
+
+interface CommandGroup {
+  name: string;
+  function?: CommandFunction[];
+}
+
+interface ControlPort {
+  commandGroup?: CommandGroup[];
+}
+
+interface RawDevice {
+  id?: string;
+  name?: string;
+  label?: string;
+  type?: string;
+  controlPort?: ControlPort;
+}
+
+interface RawConfig {
+  device?: RawDevice[];
 }
 
 export class HarmonyClient {
@@ -143,17 +174,19 @@ export class HarmonyClient {
     }
 
     try {
-      const rawConfig = await this.client.getAvailableCommands();
-      const devices = (rawConfig as any).device?.map((d: any) => ({
-        id: d.id,
-        name: d.name,
-        type: d.type,
-        commands: (d.commands || []).map((c: any) => ({
-          id: c.name, // Using name as id since that's what we use in the rest of the app
-          name: c.name,
-          label: c.label,
-          action: c.action
-        }))
+      const rawConfig = await this.client.getAvailableCommands() as RawConfig;
+      const devices = rawConfig.device?.map((d: RawDevice) => ({
+        id: d.id || "",
+        name: d.label || d.name || "",
+        type: d.type || "",
+        commands: (d.controlPort?.commandGroup || []).flatMap((group: CommandGroup) => 
+          (group.function || []).map((fn: CommandFunction) => ({
+            id: fn.name,
+            name: fn.name,
+            label: fn.label || fn.name,
+            action: fn.action
+          }))
+        )
       })) || [];
 
       return devices;
@@ -346,7 +379,7 @@ export class HarmonyClient {
       const config = JSON.parse(cached) as CachedConfig;
       
       // Check if cache is expired
-      if (Date.now() - config.timestamp > CACHE_TTL) {
+      if (Date.now() - config.timestamp > CACHE_EXPIRY) {
         Logger.info("Config cache expired for hub", this.hub.name);
         await LocalStorage.removeItem(this.cacheKey);
         return null;
