@@ -24,12 +24,13 @@ export function HarmonyCommand(): JSX.Element {
     disconnect,
     refresh,
     executeCommand,
+    clearCache
   } = useHarmony();
 
   const [searchText, setSearchText] = useState("");
   const preferences = getPreferenceValues<Preferences>();
   const defaultView = preferences.defaultView || "devices";
-  const [view, setView] = useState<"hubs" | "activities" | "devices">(
+  const [view, setView] = useState<"hubs" | "activities" | "devices" | "commands">(
     selectedHub ? defaultView : "hubs"
   );
   const [selectedDevice, setSelectedDevice] = useState<HarmonyDevice | null>(null);
@@ -189,10 +190,26 @@ export function HarmonyCommand(): JSX.Element {
               icon={Icon.Globe}
               actions={
                 <ActionPanel>
-                  <Action
-                    title="Select Hub"
-                    onAction={() => handleHubSelect(hub)}
-                  />
+                  <ActionPanel.Section>
+                    <Action
+                      title="Select Hub"
+                      onAction={() => handleHubSelect(hub)}
+                    />
+                  </ActionPanel.Section>
+                  <ActionPanel.Section>
+                    <Action
+                      title="Clear Cache"
+                      icon={Icon.Trash}
+                      shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+                      onAction={clearCache}
+                    />
+                    <Action
+                      title="Refresh"
+                      icon={Icon.ArrowClockwise}
+                      onAction={refresh}
+                      shortcut={{ modifiers: ["cmd"], key: "r" }}
+                    />
+                  </ActionPanel.Section>
                 </ActionPanel>
               }
             />
@@ -203,57 +220,64 @@ export function HarmonyCommand(): JSX.Element {
   }
 
   // Show devices or activities based on view
-  return (
-    <List
-      searchBarPlaceholder={`Search ${view}...`}
-      onSearchTextChange={setSearchText}
-      searchBarAccessory={
-        <List.Dropdown
-          tooltip="Select View"
-          value={view}
-          onChange={(newView) => {
-            setView(newView as "devices" | "activities");
-            setSelectedDevice(null);  // Reset selected device when changing views
-          }}
-        >
-          <List.Dropdown.Item key="devices" title="Devices" value="devices" />
-          <List.Dropdown.Item key="activities" title="Activities" value="activities" />
-        </List.Dropdown>
-      }
-    >
-      {view === "devices" ? (
-        selectedDevice ? (
+  if (view === "devices") {
+    return (
+      <List
+        searchBarPlaceholder="Search devices..."
+        onSearchTextChange={setSearchText}
+        searchBarAccessory={
+          <List.Dropdown
+            tooltip="Select View"
+            value={view}
+            onChange={(newView) => {
+              setView(newView as "devices" | "activities" | "commands");
+              setSelectedDevice(null);  // Reset selected device when changing views
+            }}
+          >
+            <List.Dropdown.Item key="devices" title="Devices" value="devices" />
+            <List.Dropdown.Item key="activities" title="Activities" value="activities" />
+            <List.Dropdown.Item key="commands" title="Commands" value="commands" />
+          </List.Dropdown>
+        }
+      >
+        {selectedDevice ? (
           // Show commands for selected device
           <List.Section key={selectedDevice.id} title={`${selectedDevice.name} Commands`}>
-            {selectedDevice.commands.map((command) => {
-              const itemKey = `${selectedDevice.id}-${command.id}`;
-              return (
-                <List.Item
-                  key={itemKey}
-                  title={command.name}
-                  icon={getCommandIcon(command.name)}
-                  actions={
-                    <ActionPanel>
-                      <Action
-                        title="Send Command"
-                        onAction={() => handleCommand({
-                          name: command.name,
-                          deviceId: selectedDevice.id,
-                          id: command.id,
-                          group: command.group
-                        })}
-                      />
-                      <Action
-                        title="Back to Devices"
-                        icon={Icon.ArrowLeft}
-                        onAction={() => setSelectedDevice(null)}
-                        shortcut={{ modifiers: ["cmd"], key: "[" }}
-                      />
-                    </ActionPanel>
-                  }
-                />
-              );
-            })}
+            {selectedDevice.commands
+              .filter((command) =>
+                searchText
+                  ? command.name.toLowerCase().includes(searchText.toLowerCase())
+                  : true
+              )
+              .map((command) => {
+                const itemKey = `${selectedDevice.id}-${command.id}`;
+                return (
+                  <List.Item
+                    key={itemKey}
+                    title={command.name}
+                    icon={getCommandIcon(command.name)}
+                    actions={
+                      <ActionPanel>
+                        <Action
+                          title="Send Command"
+                          onAction={() => handleCommand({
+                            name: command.name,
+                            deviceId: selectedDevice.id,
+                            id: command.id,
+                            group: command.group
+                          })}
+                        />
+                        <Action
+                          title="Back to Devices"
+                          icon={Icon.ArrowLeft}
+                          onAction={() => setSelectedDevice(null)}
+                          shortcut={{ modifiers: ["cmd"], key: "[" }}
+                        />
+                      </ActionPanel>
+                    }
+                  />
+                );
+              })}
           </List.Section>
         ) : (
           // Show list of devices
@@ -275,26 +299,83 @@ export function HarmonyCommand(): JSX.Element {
               />
             ))}
           </List.Section>
-        )
-      ) : (
-        <List.Section key="activities" title="Activities">
-          {filteredActivities.map((activity) => (
-            <List.Item
-              key={activity.id}
-              title={activity.name}
-              icon={currentActivity?.id === activity.id ? Icon.CheckCircle : Icon.Circle}
-              actions={
-                <ActionPanel>
-                  <Action
-                    title={currentActivity?.id === activity.id ? "Stop Activity" : "Start Activity"}
-                    onAction={() => handleActivity(activity)}
-                  />
-                </ActionPanel>
-              }
-            />
-          ))}
-        </List.Section>
-      )}
+        )}
+      </List>
+    );
+  }
+
+  if (view === "commands") {
+    return (
+      <List
+        searchBarPlaceholder="Search commands..."
+        onSearchTextChange={setSearchText}
+        isLoading={loadingState.stage === "LOADING"}
+      >
+        {devices.map((device) => {
+          // Filter commands based on search text
+          const filteredCommands = device.commands.filter((command) =>
+            searchText
+              ? command.name.toLowerCase().includes(searchText.toLowerCase()) ||
+                device.name.toLowerCase().includes(searchText.toLowerCase())
+              : true
+          );
+
+          // Skip devices with no matching commands when searching
+          if (searchText && filteredCommands.length === 0) {
+            return null;
+          }
+
+          return (
+            <List.Section key={device.id} title={device.name}>
+              {filteredCommands.map((command) => (
+                <List.Item
+                  key={`${device.id}-${command.id}`}
+                  title={command.name}
+                  icon={Icon.Terminal}
+                  actions={
+                    <ActionPanel>
+                      <Action
+                        title="Execute Command"
+                        onAction={() => handleCommand({
+                          name: command.name,
+                          deviceId: device.id,
+                          id: command.id,
+                          group: command.group
+                        })}
+                      />
+                    </ActionPanel>
+                  }
+                />
+              ))}
+            </List.Section>
+          );
+        })}
+      </List>
+    );
+  }
+
+  return (
+    <List
+      searchBarPlaceholder="Search activities..."
+      onSearchTextChange={setSearchText}
+    >
+      <List.Section key="activities" title="Activities">
+        {filteredActivities.map((activity) => (
+          <List.Item
+            key={activity.id}
+            title={activity.name}
+            icon={currentActivity?.id === activity.id ? Icon.CheckCircle : Icon.Circle}
+            actions={
+              <ActionPanel>
+                <Action
+                  title={currentActivity?.id === activity.id ? "Stop Activity" : "Start Activity"}
+                  onAction={() => handleActivity(activity)}
+                />
+              </ActionPanel>
+            }
+          />
+        ))}
+      </List.Section>
     </List>
   );
 }

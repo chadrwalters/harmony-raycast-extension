@@ -21,6 +21,7 @@ interface HarmonyContextState {
   disconnect: () => Promise<void>;
   refresh: () => Promise<void>;
   executeCommand: (command: HarmonyCommand) => Promise<void>;
+  clearCache: () => Promise<void>;
 }
 
 const HarmonyContext = createContext<HarmonyContextState | null>(null);
@@ -245,6 +246,27 @@ function useHarmonyState(): HarmonyContextState {
     }
   }, [client]);
 
+  // Clear cache and refresh
+  const clearCache = useCallback(async () => {
+    try {
+      await manager.clearCache();
+      await showToast({
+        style: Toast.Style.Success,
+        title: "Cache cleared",
+        message: "All cached data has been removed"
+      });
+      await discover();
+    } catch (error) {
+      Logger.error("Failed to clear cache:", error);
+      await showToast({
+        style: Toast.Style.Failure,
+        title: "Failed to clear cache",
+        message: (error as Error).message
+      });
+      throw error;
+    }
+  }, [discover]);
+
   // Start discovery on mount
   useEffect(() => {
     // Start discovery
@@ -271,7 +293,8 @@ function useHarmonyState(): HarmonyContextState {
     connect,
     disconnect,
     refresh: discover,
-    executeCommand
+    executeCommand,
+    clearCache
   };
 }
 

@@ -184,4 +184,33 @@ export class HarmonyManager {
     this.isDiscovering = false;
     this.discoveryPromise = null;
   }
+
+  /**
+   * Clear all cached data
+   */
+  public async clearCache(): Promise<void> {
+    try {
+      Logger.info("Clearing all Harmony caches");
+      
+      // Clear hub cache
+      await LocalStorage.removeItem(CACHE_KEY);
+      
+      // Clear all hub-specific config caches
+      const allKeys = await LocalStorage.allItems();
+      for (const key of Object.keys(allKeys)) {
+        if (key.startsWith('harmony-config-')) {
+          await LocalStorage.removeItem(key);
+        }
+      }
+      
+      Logger.info("All caches cleared");
+    } catch (error) {
+      Logger.error("Failed to clear caches:", error);
+      throw new HarmonyError(
+        "Failed to clear caches",
+        ErrorCategory.STATE,
+        error as Error
+      );
+    }
+  }
 }
