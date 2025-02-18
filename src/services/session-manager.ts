@@ -1,5 +1,4 @@
 import { LocalStorage } from "@raycast/api";
-
 import { ToastManager } from "../ui/toast-manager";
 
 /**

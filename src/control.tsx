@@ -1,14 +1,11 @@
-import { useState } from "react";
-
-import { HarmonyCommand, HarmonyStageType } from "./components/HarmonyCommand";
+import React from "react";
+import { HarmonyCommand } from "./components/HarmonyCommand";
 import { HarmonyProvider } from "./hooks/useHarmony";
 
-export default function Command(): JSX.Element {
-  const [stage, setStage] = useState<HarmonyStageType>("activities");
-
+export default function Command(): React.ReactElement {
   return (
     <HarmonyProvider>
-      <HarmonyCommand stage={stage} onStageChange={setStage} />
+      <HarmonyCommand />
     </HarmonyProvider>
   );
 }

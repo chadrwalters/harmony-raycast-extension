@@ -1,6 +1,5 @@
-import { getPreferenceValues } from "@raycast/api";
-
 import { LogLevel, LogEntry, ILogger, LoggerOptions } from "../types/logging";
+import { getPreferenceValues } from "@raycast/api";
 
 interface Preferences {
   debugLogging: boolean;
@@ -36,22 +35,43 @@ export class Logger implements ILogger {
   /**
    * Format a log message with timestamp and context
    */
-  private static formatMessage(level: LogLevel, message: string, ...args: unknown[]): string {
+  private static formatMessage(level: LogLevel, message: string, ...args: (string | number | boolean | object | null | undefined)[]): string {
     const timestamp = new Date().toISOString();
-    const formattedArgs = args.map((arg) => (typeof arg === "object" ? JSON.stringify(arg) : String(arg))).join(" ");
-    return `[${timestamp}] [${LogLevel[level]}] ${message} ${formattedArgs}`;
+    const pid = process.pid;
+    const formattedArgs = args.map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+    ).join(' ');
+    
+    return `${timestamp} [pid:${pid}] ${level}: ${message} ${formattedArgs}`.trim();
   }
 
   /**
    * Format a log message with timestamp and context
    */
   private formatMessage(level: LogLevel, message: string, data?: unknown): LogEntry {
-    const formattedMessage = Logger.formatMessage(level, message, data);
-    return {
+    const formattedMessage = Logger.formatMessage(
+      level,
+      message,
+      data as string | number | boolean | object | null | undefined
+    );
+    
+    const entry: LogEntry = {
       level,
       message: formattedMessage,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
+
+    // Add to history and maintain max entries
+    this.logHistory.push(entry);
+    if (this.logHistory.length > this.options.maxEntries!) {
+      this.logHistory.shift();
+    }
+
+    // Always output to console for development
+    const levelStr = LogLevel[level].padEnd(5);
+    console.log(formattedMessage);
+
+    return entry;
   }
 
   /**
@@ -59,7 +79,7 @@ export class Logger implements ILogger {
    */
   public debug(message: string, data?: unknown): void {
     if (this.options.minLevel! <= LogLevel.DEBUG) {
-      this.formatMessage(LogLevel.DEBUG, message, data);
+      const entry = this.formatMessage(LogLevel.DEBUG, message, data);
     }
   }
 
@@ -69,7 +89,7 @@ export class Logger implements ILogger {
   public info(message: string, data?: unknown): void {
     if (this.options.minLevel! <= LogLevel.INFO) {
       const entry = this.formatMessage(LogLevel.INFO, message, data);
-      console.info(entry.message);
+      console.info(entry.message, entry.data || "");
     }
   }
 
@@ -79,7 +99,7 @@ export class Logger implements ILogger {
   public warn(message: string, data?: unknown): void {
     if (this.options.minLevel! <= LogLevel.WARN) {
       const entry = this.formatMessage(LogLevel.WARN, message, data);
-      console.warn(entry.message);
+      console.warn(entry.message, entry.data || "");
     }
   }
 
@@ -89,7 +109,7 @@ export class Logger implements ILogger {
   public error(message: string, data?: unknown): void {
     if (this.options.minLevel! <= LogLevel.ERROR) {
       const entry = this.formatMessage(LogLevel.ERROR, message, data);
-      console.error(entry.message);
+      console.error(entry.message, entry.data || "");
     }
   }
 

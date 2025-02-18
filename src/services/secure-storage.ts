@@ -1,13 +1,11 @@
 // External dependencies
+import { LocalStorage } from "@raycast/api";
 import crypto from "crypto";
 
-import { LocalStorage } from "@raycast/api";
-
 // Core services
+import { ErrorHandler } from "./errorHandler";
 import { ErrorCategory, HarmonyError } from "../types/errors";
 import { HarmonyHub } from "../types/harmony";
-
-import { ErrorHandler } from "./errorHandler";
 import { Logger } from "./logger";
 
 /**
@@ -62,7 +60,7 @@ export class SecureStorage {
       const harmonyError = new HarmonyError(
         "Failed to store value in secure storage",
         ErrorCategory.STORAGE,
-        error instanceof Error ? error : undefined,
+        error instanceof Error ? error : undefined
       );
       ErrorHandler.handle(harmonyError);
       throw harmonyError;
@@ -101,7 +99,7 @@ export class SecureStorage {
       const harmonyError = new HarmonyError(
         "Failed to retrieve value from secure storage",
         ErrorCategory.STORAGE,
-        error instanceof Error ? error : undefined,
+        error instanceof Error ? error : undefined
       );
       ErrorHandler.handle(harmonyError);
       throw harmonyError;
@@ -128,7 +126,7 @@ export class SecureStorage {
       const harmonyError = new HarmonyError(
         "Failed to remove value from secure storage",
         ErrorCategory.STORAGE,
-        error instanceof Error ? error : undefined,
+        error instanceof Error ? error : undefined
       );
       ErrorHandler.handle(harmonyError);
       throw harmonyError;
@@ -154,7 +152,7 @@ export class SecureStorage {
       const harmonyError = new HarmonyError(
         "Failed to clear secure storage",
         ErrorCategory.STORAGE,
-        error instanceof Error ? error : undefined,
+        error instanceof Error ? error : undefined
       );
       ErrorHandler.handle(harmonyError);
       throw harmonyError;
@@ -182,7 +180,7 @@ export class SecureStorage {
       const harmonyError = new HarmonyError(
         "Failed to check key existence in secure storage",
         ErrorCategory.STORAGE,
-        error instanceof Error ? error : undefined,
+        error instanceof Error ? error : undefined
       );
       ErrorHandler.handle(harmonyError);
       throw harmonyError;
@@ -238,7 +236,7 @@ export class SecureStorage {
       const harmonyError = new HarmonyError(
         "Failed to retrieve Harmony Hub data from storage",
         ErrorCategory.STORAGE,
-        error instanceof Error ? error : undefined,
+        error instanceof Error ? error : undefined
       );
       ErrorHandler.handle(harmonyError);
       throw harmonyError;

@@ -1,11 +1,16 @@
 /**
- * Log level enumeration
+ * Log levels for application logging
+ * @enum {number}
  */
 export enum LogLevel {
-  DEBUG = "DEBUG",
-  INFO = "INFO",
-  WARN = "WARN",
-  ERROR = "ERROR",
+  /** Debug level for detailed troubleshooting */
+  DEBUG = 0,
+  /** Info level for general operational messages */
+  INFO = 1,
+  /** Warning level for potentially problematic situations */
+  WARN = 2,
+  /** Error level for error conditions */
+  ERROR = 3
 }
 
 /**

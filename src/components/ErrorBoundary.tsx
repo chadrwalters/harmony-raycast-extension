@@ -1,7 +1,11 @@
-import { Component, ReactNode } from "react";
+import React from "react";
+import { List, Icon } from "@raycast/api";
+import { Logger } from "../services/logger";
+import { ErrorCategory } from "../types/errors";
+import { FeedbackState, ErrorStates } from "./FeedbackState";
 
 interface ErrorBoundaryProps {
-  children: ReactNode;
+  children: React.ReactNode;
 }
 
 interface ErrorBoundaryState {
@@ -12,7 +16,7 @@ interface ErrorBoundaryState {
  * Error boundary component to catch and handle errors in the component tree.
  * Displays user-friendly error messages and logs errors for debugging.
  */
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { error: null };
@@ -22,13 +26,22 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return { error };
   }
 
-  componentDidCatch(error: Error): void {
-    console.error("Error caught by boundary:", error);
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+    Logger.error("Component error caught by boundary", {
+      error,
+      componentStack: errorInfo.componentStack,
+      category: ErrorCategory.UI,
+    });
   }
 
-  render(): ReactNode {
+  render(): React.ReactNode {
     if (this.state.error) {
-      return <div>An unexpected error occurred: {this.state.error.message}</div>;
+      return (
+        <FeedbackState
+          {...ErrorStates.GENERAL_ERROR}
+          description={`An unexpected error occurred: ${this.state.error.message}`}
+        />
+      );
     }
 
     return this.props.children;

@@ -1,7 +1,6 @@
+import { HarmonyError, ErrorCategory, RetryConfig, TimeoutConfig, ErrorSeverity } from "../types/errors";
+import { HarmonyHub, HarmonyDevice, HarmonyActivity, CommandRequest, HarmonyCommand } from "../types/harmony";
 import { Logger } from "../services/logger";
-import { ErrorCategory, HarmonyError } from "../types/errors";
-import { HarmonyHub, HarmonyDevice, HarmonyActivity, HarmonyCommand, CommandRequest } from "../types/harmony";
-import { RetryConfig, TimeoutConfig } from "../types/preferences";
 
 /**
  * Type guard for checking if a value is a non-empty string
@@ -11,16 +10,16 @@ export function isNonEmptyString(value: unknown): value is string {
 }
 
 /**
- * Checks if a value is a positive number
+ * Type guard for checking if a value is a positive number
  */
-function isPositiveNumber(value: number): boolean {
+export function isPositiveNumber(value: unknown): value is number {
   return typeof value === "number" && !isNaN(value) && value > 0;
 }
 
 /**
- * Checks if a value is a valid port number
+ * Type guard for checking if a value is a valid port number
  */
-function isValidPort(value: number): boolean {
+export function isValidPort(value: unknown): value is number {
   return isPositiveNumber(value) && value <= 65535;
 }
 
@@ -31,7 +30,7 @@ export function isValidIpAddress(value: unknown): value is string {
   if (!isNonEmptyString(value)) return false;
   const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
   if (!ipv4Regex.test(value)) return false;
-  return value.split(".").every((num) => {
+  return value.split(".").every(num => {
     const n = parseInt(num, 10);
     return n >= 0 && n <= 255;
   });
@@ -49,14 +48,49 @@ export function isValidCommandGroup(value: unknown): value is string {
 /**
  * Validate Harmony Hub configuration
  */
-export function validateHubConfig(hub: HarmonyHub): void {
-  if (!hub.ip) {
-    throw new HarmonyError("Hub IP address is required", ErrorCategory.CONNECTION);
+export function validateHubConfig(hub: Partial<HarmonyHub>): asserts hub is HarmonyHub {
+  if (!isNonEmptyString(hub.id)) {
+    throw new HarmonyError(
+      "Hub ID is required",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_HUB_ID"
+    );
   }
 
-  const port = typeof hub.port === "number" ? hub.port : parseInt(hub.port as string, 10);
-  if (hub.port !== undefined && !isValidPort(port)) {
-    throw new HarmonyError(`Invalid port number: ${hub.port}`, ErrorCategory.CONNECTION);
+  if (!isNonEmptyString(hub.name)) {
+    throw new HarmonyError(
+      "Hub name is required",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_HUB_NAME"
+    );
+  }
+
+  if (!isValidIpAddress(hub.ip)) {
+    throw new HarmonyError(
+      "Invalid hub IP address",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_HUB_IP"
+    );
+  }
+
+  if (hub.port !== undefined && !isValidPort(hub.port)) {
+    throw new HarmonyError(
+      "Invalid hub port",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_HUB_PORT"
+    );
   }
 
   Logger.debug("Hub config validation passed", { hub });
@@ -73,7 +107,7 @@ export function validateDevice(device: Partial<HarmonyDevice>): asserts device i
       undefined,
       undefined,
       false,
-      "INVALID_DEVICE_ID",
+      "INVALID_DEVICE_ID"
     );
   }
 
@@ -84,7 +118,7 @@ export function validateDevice(device: Partial<HarmonyDevice>): asserts device i
       undefined,
       undefined,
       false,
-      "INVALID_DEVICE_NAME",
+      "INVALID_DEVICE_NAME"
     );
   }
 
@@ -95,7 +129,7 @@ export function validateDevice(device: Partial<HarmonyDevice>): asserts device i
       undefined,
       undefined,
       false,
-      "INVALID_DEVICE_TYPE",
+      "INVALID_DEVICE_TYPE"
     );
   }
 
@@ -106,11 +140,11 @@ export function validateDevice(device: Partial<HarmonyDevice>): asserts device i
       undefined,
       undefined,
       false,
-      "INVALID_COMMANDS_ARRAY",
+      "INVALID_COMMANDS_ARRAY"
     );
   }
 
-  device.commands.forEach((command: HarmonyCommand, index: number) => {
+  device.commands.forEach((command, index) => {
     if (!isNonEmptyString(command.id)) {
       throw new HarmonyError(
         `Invalid command ID at index ${index}`,
@@ -118,7 +152,7 @@ export function validateDevice(device: Partial<HarmonyDevice>): asserts device i
         undefined,
         undefined,
         false,
-        "INVALID_COMMAND_ID",
+        "INVALID_COMMAND_ID"
       );
     }
 
@@ -129,7 +163,7 @@ export function validateDevice(device: Partial<HarmonyDevice>): asserts device i
         undefined,
         undefined,
         false,
-        "INVALID_COMMAND_NAME",
+        "INVALID_COMMAND_NAME"
       );
     }
 
@@ -140,7 +174,7 @@ export function validateDevice(device: Partial<HarmonyDevice>): asserts device i
         undefined,
         undefined,
         false,
-        "INVALID_COMMAND_DEVICE_ID",
+        "INVALID_COMMAND_DEVICE_ID"
       );
     }
 
@@ -151,7 +185,7 @@ export function validateDevice(device: Partial<HarmonyDevice>): asserts device i
         undefined,
         undefined,
         false,
-        "INVALID_COMMAND_GROUP",
+        "INVALID_COMMAND_GROUP"
       );
     }
   });
@@ -170,7 +204,7 @@ export function validateActivity(activity: Partial<HarmonyActivity>): asserts ac
       undefined,
       undefined,
       false,
-      "INVALID_ACTIVITY_ID",
+      "INVALID_ACTIVITY_ID"
     );
   }
 
@@ -181,7 +215,7 @@ export function validateActivity(activity: Partial<HarmonyActivity>): asserts ac
       undefined,
       undefined,
       false,
-      "INVALID_ACTIVITY_NAME",
+      "INVALID_ACTIVITY_NAME"
     );
   }
 
@@ -192,7 +226,7 @@ export function validateActivity(activity: Partial<HarmonyActivity>): asserts ac
       undefined,
       undefined,
       false,
-      "INVALID_ACTIVITY_TYPE",
+      "INVALID_ACTIVITY_TYPE"
     );
   }
 
@@ -203,7 +237,7 @@ export function validateActivity(activity: Partial<HarmonyActivity>): asserts ac
       undefined,
       undefined,
       false,
-      "INVALID_ACTIVITY_STATUS",
+      "INVALID_ACTIVITY_STATUS"
     );
   }
 
@@ -215,70 +249,160 @@ export function validateActivity(activity: Partial<HarmonyActivity>): asserts ac
  */
 export function validateCommandRequest(request: Partial<CommandRequest>): asserts request is CommandRequest {
   if (!request) {
-    throw new HarmonyError("Command request is required", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Command request is required",
+      ErrorCategory.VALIDATION
+    );
   }
 
   if (!request.command || !isNonEmptyString(request.command.deviceId)) {
-    throw new HarmonyError("Command request must include deviceId", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Command request must include deviceId",
+      ErrorCategory.VALIDATION
+    );
   }
 
   if (!isNonEmptyString(request.command.name)) {
-    throw new HarmonyError("Command request must include command name", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Command request must include command name",
+      ErrorCategory.VALIDATION
+    );
   }
 }
 
 /**
- * Validates a retry configuration object
+ * Validate retry configuration
  */
-export function validateRetryConfig(config: RetryConfig): void {
+export function validateRetryConfig(config: Partial<RetryConfig>): asserts config is RetryConfig {
   if (!isPositiveNumber(config.maxAttempts)) {
-    throw new HarmonyError("maxAttempts must be a positive number", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Maximum retry attempts must be a positive number",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_RETRY_MAX_ATTEMPTS"
+    );
   }
 
   if (!isPositiveNumber(config.baseDelay)) {
-    throw new HarmonyError("baseDelay must be a positive number", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Base retry delay must be a positive number",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_RETRY_BASE_DELAY"
+    );
   }
 
   if (!isPositiveNumber(config.maxDelay)) {
-    throw new HarmonyError("maxDelay must be a positive number", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Maximum retry delay must be a positive number",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_RETRY_MAX_DELAY"
+    );
   }
 
   if (typeof config.useExponentialBackoff !== "boolean") {
-    throw new HarmonyError("useExponentialBackoff must be a boolean", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Use exponential backoff must be a boolean",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_RETRY_BACKOFF"
+    );
   }
 
   if (config.maxRetryDuration !== undefined && !isPositiveNumber(config.maxRetryDuration)) {
-    throw new HarmonyError("maxRetryDuration must be a positive number", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Maximum retry duration must be a positive number",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_RETRY_DURATION"
+    );
   }
+
+  Logger.debug("Retry config validation passed", { config });
 }
 
 /**
- * Validates a timeout configuration object
+ * Validate timeout configuration
  */
-export function validateTimeoutConfig(config: TimeoutConfig): void {
+export function validateTimeoutConfig(config: Partial<TimeoutConfig>): asserts config is TimeoutConfig {
   if (!isPositiveNumber(config.connection)) {
-    throw new HarmonyError("connection timeout must be a positive number", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Connection timeout must be a positive number",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_TIMEOUT_CONNECTION"
+    );
   }
 
   if (!isPositiveNumber(config.message)) {
-    throw new HarmonyError("message timeout must be a positive number", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Message timeout must be a positive number",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_TIMEOUT_MESSAGE"
+    );
   }
 
   if (!isPositiveNumber(config.activity)) {
-    throw new HarmonyError("activity timeout must be a positive number", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Activity timeout must be a positive number",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_TIMEOUT_ACTIVITY"
+    );
   }
 
   if (!isPositiveNumber(config.command)) {
-    throw new HarmonyError("command timeout must be a positive number", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Command timeout must be a positive number",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_TIMEOUT_COMMAND"
+    );
   }
 
   if (!isPositiveNumber(config.discovery)) {
-    throw new HarmonyError("discovery timeout must be a positive number", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Discovery timeout must be a positive number",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_TIMEOUT_DISCOVERY"
+    );
   }
 
   if (!isPositiveNumber(config.cache)) {
-    throw new HarmonyError("cache timeout must be a positive number", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Cache timeout must be a positive number",
+      ErrorCategory.VALIDATION,
+      undefined,
+      undefined,
+      false,
+      "INVALID_TIMEOUT_CACHE"
+    );
   }
+
+  Logger.debug("Timeout config validation passed", { config });
 }
 
 /**
@@ -292,7 +416,7 @@ export function validateCommand(command: Partial<HarmonyCommand>): asserts comma
       undefined,
       undefined,
       false,
-      "INVALID_COMMAND_ID",
+      "INVALID_COMMAND_ID"
     );
   }
 
@@ -303,7 +427,7 @@ export function validateCommand(command: Partial<HarmonyCommand>): asserts comma
       undefined,
       undefined,
       false,
-      "INVALID_COMMAND_NAME",
+      "INVALID_COMMAND_NAME"
     );
   }
 
@@ -314,7 +438,7 @@ export function validateCommand(command: Partial<HarmonyCommand>): asserts comma
       undefined,
       undefined,
       false,
-      "INVALID_COMMAND_DEVICE_ID",
+      "INVALID_COMMAND_DEVICE_ID"
     );
   }
 
@@ -325,7 +449,7 @@ export function validateCommand(command: Partial<HarmonyCommand>): asserts comma
       undefined,
       undefined,
       false,
-      "INVALID_COMMAND_GROUP",
+      "INVALID_COMMAND_GROUP"
     );
   }
 

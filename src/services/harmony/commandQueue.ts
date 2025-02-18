@@ -1,5 +1,5 @@
-import { HarmonyError, ErrorCategory } from "../../types/errors";
 import { HarmonyCommand, CommandRequest, CommandStatus, CommandResult, CommandQueueConfig } from "../../types/harmony";
+import { HarmonyError, ErrorCategory } from "../../types/errors";
 import { Logger } from "../logger";
 
 const DEFAULT_CONFIG: Required<CommandQueueConfig> = {
@@ -7,7 +7,7 @@ const DEFAULT_CONFIG: Required<CommandQueueConfig> = {
   maxConcurrent: 1,
   defaultTimeout: 5000,
   defaultRetries: 2,
-  commandDelay: 100,
+  commandDelay: 100
 };
 
 export type CommandSender = (command: HarmonyCommand) => Promise<void>;
@@ -20,19 +20,34 @@ function validateConfig(config: Partial<CommandQueueConfig>): Required<CommandQu
 
   // Validate numeric values are positive
   if (result.maxQueueSize <= 0) {
-    throw new HarmonyError("maxQueueSize must be greater than 0", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "maxQueueSize must be greater than 0",
+      ErrorCategory.VALIDATION
+    );
   }
   if (result.maxConcurrent <= 0) {
-    throw new HarmonyError("maxConcurrent must be greater than 0", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "maxConcurrent must be greater than 0",
+      ErrorCategory.VALIDATION
+    );
   }
   if (result.defaultTimeout <= 0) {
-    throw new HarmonyError("defaultTimeout must be greater than 0", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "defaultTimeout must be greater than 0",
+      ErrorCategory.VALIDATION
+    );
   }
   if (result.defaultRetries < 0) {
-    throw new HarmonyError("defaultRetries cannot be negative", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "defaultRetries cannot be negative",
+      ErrorCategory.VALIDATION
+    );
   }
   if (result.commandDelay < 0) {
-    throw new HarmonyError("commandDelay cannot be negative", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "commandDelay cannot be negative",
+      ErrorCategory.VALIDATION
+    );
   }
 
   return result;
@@ -43,19 +58,34 @@ function validateConfig(config: Partial<CommandQueueConfig>): Required<CommandQu
  */
 function validateRequest(request: CommandRequest): void {
   if (!request.id) {
-    throw new HarmonyError("Command request must have an id", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Command request must have an id",
+      ErrorCategory.VALIDATION
+    );
   }
   if (!request.command) {
-    throw new HarmonyError("Command request must have a command", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Command request must have a command",
+      ErrorCategory.VALIDATION
+    );
   }
   if (!request.command.id || !request.command.deviceId) {
-    throw new HarmonyError("Command must have id and deviceId", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Command must have id and deviceId",
+      ErrorCategory.VALIDATION
+    );
   }
   if (request.timeout !== undefined && request.timeout <= 0) {
-    throw new HarmonyError("Command timeout must be greater than 0", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Command timeout must be greater than 0",
+      ErrorCategory.VALIDATION
+    );
   }
   if (request.retries !== undefined && request.retries < 0) {
-    throw new HarmonyError("Command retries cannot be negative", ErrorCategory.VALIDATION);
+    throw new HarmonyError(
+      "Command retries cannot be negative",
+      ErrorCategory.VALIDATION
+    );
   }
 }
 
@@ -69,7 +99,10 @@ export class CommandQueue {
   private config: Required<CommandQueueConfig>;
   private commandSender: CommandSender;
 
-  constructor(commandSender: CommandSender, config?: Partial<CommandQueueConfig>) {
+  constructor(
+    commandSender: CommandSender,
+    config?: Partial<CommandQueueConfig>
+  ) {
     this.commandSender = commandSender;
     this.config = validateConfig(config || {});
   }
@@ -81,14 +114,17 @@ export class CommandQueue {
     validateRequest(request);
 
     if (this.queue.length >= this.config.maxQueueSize) {
-      throw new HarmonyError(`Command queue is full (max size: ${this.config.maxQueueSize})`, ErrorCategory.QUEUE);
+      throw new HarmonyError(
+        `Command queue is full (max size: ${this.config.maxQueueSize})`,
+        ErrorCategory.QUEUE
+      );
     }
 
     const result: CommandResult = {
       id: request.id,
       command: request.command,
       status: CommandStatus.QUEUED,
-      queuedAt: Date.now(),
+      queuedAt: Date.now()
     };
 
     this.results.set(request.id, result);
@@ -148,20 +184,17 @@ export class CommandQueue {
           command: request.command.name,
           deviceId: request.command.deviceId,
           timeout,
-          remainingRetries: maxRetries - attempts,
+          remainingRetries: maxRetries - attempts
         });
 
         await Promise.race([
           this.sendCommand(request.command),
-          new Promise((_, reject) =>
-            setTimeout(
-              () =>
-                reject(
-                  new HarmonyError(`Command execution timed out after ${timeout}ms`, ErrorCategory.COMMAND_EXECUTION),
-                ),
-              timeout,
-            ),
-          ),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new HarmonyError(
+              `Command execution timed out after ${timeout}ms`,
+              ErrorCategory.COMMAND_EXECUTION
+            )), timeout)
+          )
         ]);
         return;
       } catch (error) {
@@ -170,15 +203,17 @@ export class CommandQueue {
           throw new HarmonyError(
             `Command failed after ${attempts} attempts`,
             ErrorCategory.COMMAND_EXECUTION,
-            error instanceof Error ? error : undefined,
+            error instanceof Error ? error : undefined
           );
         }
         Logger.warn(`Command failed, retrying (${attempts}/${maxRetries})`, {
           command: request.command.name,
           deviceId: request.command.deviceId,
-          error,
+          error
         });
-        await new Promise((resolve) => setTimeout(resolve, this.config.commandDelay));
+        await new Promise(resolve => 
+          setTimeout(resolve, this.config.commandDelay)
+        );
       }
     }
   }
@@ -193,7 +228,7 @@ export class CommandQueue {
       throw new HarmonyError(
         "Failed to send command to hub",
         ErrorCategory.HUB_COMMUNICATION,
-        error instanceof Error ? error : undefined,
+        error instanceof Error ? error : undefined
       );
     }
   }
@@ -210,11 +245,9 @@ export class CommandQueue {
    */
   public clearCompleted(): void {
     for (const [id, result] of this.results.entries()) {
-      if (
-        result.status === CommandStatus.COMPLETED ||
-        result.status === CommandStatus.FAILED ||
-        result.status === CommandStatus.CANCELLED
-      ) {
+      if (result.status === CommandStatus.COMPLETED || 
+          result.status === CommandStatus.FAILED ||
+          result.status === CommandStatus.CANCELLED) {
         this.results.delete(id);
       }
     }
@@ -224,7 +257,7 @@ export class CommandQueue {
    * Cancel all pending commands
    */
   public cancelAll(): void {
-    this.queue.forEach((request) => {
+    this.queue.forEach(request => {
       const result = this.results.get(request.id);
       if (result) {
         result.status = CommandStatus.CANCELLED;
@@ -255,7 +288,7 @@ export class CommandQueue {
       queueLength: this.queue.length,
       executing: this.executing.size,
       completed,
-      failed,
+      failed
     };
   }
 }
