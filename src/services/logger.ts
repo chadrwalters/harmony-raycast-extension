@@ -20,24 +20,35 @@ const DEFAULT_OPTIONS: LoggerOptions = {
  * Service for structured logging in the Harmony extension.
  * Supports multiple log levels, history tracking, and configurable formatting.
  */
-export class Logger implements ILogger {
+class LoggerImpl implements ILogger {
   /** Current logger configuration */
   private options: LoggerOptions = DEFAULT_OPTIONS;
   /** Log history */
   private history: LogEntry[] = [];
 
   /** Singleton instance */
-  private static instance: Logger;
+  private static instance: LoggerImpl | null = null;
 
   /** Get the singleton instance */
-  public static getInstance(): Logger {
-    if (!Logger.instance) {
-      Logger.instance = new Logger();
+  public static getInstance(): LoggerImpl {
+    if (!LoggerImpl.instance) {
+      LoggerImpl.instance = new LoggerImpl();
     }
-    return Logger.instance;
+    return LoggerImpl.instance;
   }
 
-  private constructor() {}
+  private constructor() {
+    // Bind all methods to this instance
+    this.debug = this.debug.bind(this);
+    this.info = this.info.bind(this);
+    this.warn = this.warn.bind(this);
+    this.error = this.error.bind(this);
+    this.logError = this.logError.bind(this);
+    this.getHistory = this.getHistory.bind(this);
+    this.clearHistory = this.clearHistory.bind(this);
+    this.setMinLevel = this.setMinLevel.bind(this);
+    this.configure = this.configure.bind(this);
+  }
 
   /**
    * Configure the logger.
@@ -186,12 +197,15 @@ export class Logger implements ILogger {
 }
 
 // Create and export the singleton instance
-export const logger = Logger.getInstance();
+const logger = LoggerImpl.getInstance();
 
 // Export the logger type for type checking
-export type LoggerType = Logger;
+export type LoggerType = typeof LoggerImpl;
 
-// Re-export the logger instance methods for convenience
+// Export the logger class for type checking
+export const Logger = LoggerImpl;
+
+// Export the logger instance methods for convenience
 export const {
   debug,
   info,
