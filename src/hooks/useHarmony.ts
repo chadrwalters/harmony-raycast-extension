@@ -5,10 +5,11 @@
  */
 
 import React, { useCallback, useState, createContext, useContext, useRef } from "react";
+import { getPreferenceValues } from "@raycast/api";
 
 import { HarmonyClient } from "../services/harmony/harmonyClient";
 import { HarmonyManager } from "../services/harmony/harmonyManager";
-import { Logger } from "../services/logger";
+import { debug, error, info } from "../services/logger";
 import { HarmonyError, ErrorCategory } from "../types/core/errors";
 import {
   HarmonyHub,
@@ -16,8 +17,9 @@ import {
   HarmonyActivity,
   HarmonyCommand,
   LoadingState,
-  HarmonyStage,
 } from "../types/core/harmony";
+import { HarmonyStage, HarmonyState } from "../types/core/state";
+import { Preferences } from "../types/core/preferences";
 
 // Create a single manager instance
 const manager = new HarmonyManager();
@@ -29,19 +31,19 @@ const manager = new HarmonyManager();
  */
 interface HarmonyContextState {
   /** List of discovered Harmony Hubs */
-  hubs: HarmonyHub[];
+  readonly hubs: readonly HarmonyHub[];
   /** Currently selected Harmony Hub */
-  selectedHub: HarmonyHub | null;
+  readonly selectedHub: HarmonyHub | null;
   /** List of devices available on the selected hub */
-  devices: HarmonyDevice[];
+  readonly devices: readonly HarmonyDevice[];
   /** List of activities available on the selected hub */
-  activities: HarmonyActivity[];
+  readonly activities: readonly HarmonyActivity[];
   /** Currently running activity */
-  currentActivity: HarmonyActivity | null;
+  readonly currentActivity: HarmonyActivity | null;
   /** Current error state */
-  error: HarmonyError | null;
+  readonly error: HarmonyError | null;
   /** Current loading state */
-  loadingState: LoadingState;
+  readonly loadingState: LoadingState;
   /** Connect to a specific Harmony Hub */
   connect: (hub: HarmonyHub) => Promise<void>;
   /** Disconnect from the current hub */
@@ -82,48 +84,25 @@ export const HarmonyProvider: React.FC<HarmonyProviderProps> = ({ children }) =>
 };
 
 /**
- * Internal state interface for the Harmony hook.
- * Contains complete state for hub management.
- * @interface HarmonyInternalState
- */
-interface HarmonyInternalState {
-  /** List of discovered Harmony Hubs */
-  hubs: HarmonyHub[];
-  /** Currently selected Harmony Hub */
-  selectedHub: HarmonyHub | null;
-  /** Active client for hub communication */
-  client: HarmonyClient | null;
-  /** List of devices available on the selected hub */
-  devices: HarmonyDevice[];
-  /** List of activities available on the selected hub */
-  activities: HarmonyActivity[];
-  /** Currently running activity */
-  currentActivity: HarmonyActivity | null;
-  /** Current error state */
-  error: HarmonyError | null;
-  /** Current loading state */
-  loadingState: LoadingState;
-}
-
-/**
  * Hook for managing Harmony Hub state and operations.
  * This is the internal implementation used by the provider.
  * Handles hub discovery, connection, device and activity management.
  * @returns The Harmony context state
  */
 function useHarmonyState(): HarmonyContextState {
-  const [state, setState] = useState<HarmonyInternalState>({
+  const preferences = getPreferenceValues<Preferences>();
+  const [state, setState] = useState<HarmonyState>({
     hubs: [],
     selectedHub: null,
-    client: null,
     devices: [],
     activities: [],
     currentActivity: null,
     error: null,
+    client: null,
     loadingState: {
       stage: HarmonyStage.INITIAL,
-      message: "Starting hub discovery",
       progress: 0,
+      message: "Ready",
     },
   });
 
@@ -155,7 +134,7 @@ function useHarmonyState(): HarmonyContextState {
   const connect = useCallback(
     async (hub: HarmonyHub) => {
       try {
-        Logger.info(`Connecting to hub ${hub.name}`);
+        info(`Connecting to hub ${hub.name}`);
         setError(null);
         setLoadingState(HarmonyStage.CONNECTING, `Connecting to ${hub.name}...`, 0);
 
@@ -163,7 +142,7 @@ function useHarmonyState(): HarmonyContextState {
         const newClient = new HarmonyClient(hub);
         await newClient.connect();
 
-        Logger.info("Connected to hub, setting up state");
+        info("Connected to hub, setting up state");
         setState((prev) => ({
           ...prev,
           client: newClient,
@@ -172,34 +151,34 @@ function useHarmonyState(): HarmonyContextState {
 
         // Load devices
         setLoadingState(HarmonyStage.LOADING_DEVICES, "Loading devices...", 0.3);
-        Logger.info("Loading devices");
+        info("Loading devices");
         const hubDevices = await newClient.getDevices();
-        Logger.info(`Loaded ${hubDevices.length} devices`);
+        info(`Loaded ${hubDevices.length} devices`);
         setState((prev) => ({ ...prev, devices: hubDevices }));
 
         // Load activities
         setLoadingState(HarmonyStage.LOADING_ACTIVITIES, "Loading activities...", 0.6);
-        Logger.info("Loading activities");
+        info("Loading activities");
         const hubActivities = await newClient.getActivities();
-        Logger.info(`Loaded ${hubActivities.length} activities`);
+        info(`Loaded ${hubActivities.length} activities`);
         setState((prev) => ({ ...prev, activities: hubActivities }));
 
         // Get current activity
-        Logger.info("Getting current activity");
+        info("Getting current activity");
         const current = await newClient.getCurrentActivity();
         setState((prev) => ({ ...prev, currentActivity: current }));
 
         setLoadingState(HarmonyStage.CONNECTED, "Connected successfully", 1);
-        Logger.info("Hub setup completed successfully");
+        info("Hub setup completed successfully");
       } catch (err) {
-        const error = new HarmonyError(
+        const harmonyError = new HarmonyError(
           "Failed to connect to hub",
           ErrorCategory.HUB_COMMUNICATION,
           err instanceof Error ? err : undefined,
         );
-        setError(error);
-        setLoadingState(HarmonyStage.ERROR, error.message, 1);
-        Logger.error("Hub connection failed", { error: error.getDetailedMessage() });
+        setError(harmonyError);
+        setLoadingState(HarmonyStage.ERROR, harmonyError.message, 1);
+        error("Hub connection failed", { error: harmonyError.getDetailedMessage() });
       }
     },
     [setLoadingState, setError],
@@ -208,85 +187,80 @@ function useHarmonyState(): HarmonyContextState {
   // Discover hubs
   const discover = useCallback(async () => {
     if (isDiscovering.current) {
-      Logger.info("Discovery already in progress, skipping");
+      info("Discovery already in progress, skipping");
       return;
     }
 
+    isDiscovering.current = true;
+
     try {
-      isDiscovering.current = true;
-      setError(null);
       setLoadingState(HarmonyStage.DISCOVERING, "Searching for Harmony Hubs...", 0.1);
 
-      Logger.info("Starting hub discovery");
+      info("Starting hub discovery");
       const discoveredHubs = await manager.startDiscovery((progress, message) => {
         setLoadingState(HarmonyStage.DISCOVERING, message, Math.max(0.1, progress));
       });
 
       if (!isDiscovering.current) {
-        Logger.info("Discovery was cancelled");
+        info("Discovery was cancelled");
         return;
       }
 
-      Logger.info(`Discovery completed, found ${discoveredHubs.length} hubs`);
+      info(`Discovery completed, found ${discoveredHubs.length} hubs`);
       setState((prev) => ({ ...prev, hubs: discoveredHubs }));
 
-      if (discoveredHubs.length === 0) {
-        const error = new HarmonyError("No Harmony Hubs found", ErrorCategory.HUB_COMMUNICATION);
-        setError(error);
-        setLoadingState(HarmonyStage.ERROR, error.message, 1);
-        throw error;
-      }
-
-      setLoadingState(HarmonyStage.CONNECTED, "Hubs discovered successfully", 1);
-
-      // If there's only one hub, automatically select it
-      if (discoveredHubs.length === 1) {
+      // If auto-connect is enabled and we found exactly one hub, connect to it
+      if (preferences.autoConnect) {
         const hub = discoveredHubs[0];
         if (hub) {
-          Logger.info("Single hub found, auto-selecting");
+          info("Single hub found, auto-selecting");
           await connect(hub);
         }
       }
     } catch (err) {
-      const error = new HarmonyError(
+      const harmonyError = new HarmonyError(
         "Failed to discover hubs",
         ErrorCategory.HUB_COMMUNICATION,
         err instanceof Error ? err : undefined,
       );
-      setError(error);
-      setLoadingState(HarmonyStage.ERROR, error.message, 1);
-      Logger.error("Hub discovery failed", { error: error.getDetailedMessage() });
+      setError(harmonyError);
+      setLoadingState(HarmonyStage.ERROR, harmonyError.message, 1);
+      error("Hub discovery failed", { error: harmonyError.getDetailedMessage() });
     } finally {
       isDiscovering.current = false;
     }
-  }, [connect, setLoadingState, setError]);
+  }, [connect, setLoadingState, setError, preferences.autoConnect]);
 
   // Disconnect from hub
   const disconnect = useCallback(async () => {
     if (state.client) {
       try {
         await state.client.disconnect();
-        setLoadingState(HarmonyStage.INITIAL, "Disconnected", 0);
+        setState((prev) => ({
+          ...prev,
+          client: null,
+          devices: [],
+          activities: [],
+          currentActivity: null,
+        }));
       } catch (err) {
-        const error = new HarmonyError(
-          "Failed to disconnect",
+        const harmonyError = new HarmonyError(
+          "Failed to disconnect from hub",
           ErrorCategory.HUB_COMMUNICATION,
           err instanceof Error ? err : undefined,
         );
-        Logger.error("Hub disconnection failed", { error: error.getDetailedMessage() });
+        error("Hub disconnection failed", { error: harmonyError.getDetailedMessage() });
       } finally {
         setState((prev) => ({
           ...prev,
           client: null,
-          selectedHub: null,
           devices: [],
           activities: [],
           currentActivity: null,
-          error: null,
         }));
       }
     }
-  }, [state.client, setLoadingState]);
+  }, [state.client, setState]);
 
   // Execute a command
   const executeCommand = useCallback(
@@ -296,7 +270,7 @@ function useHarmonyState(): HarmonyContextState {
       }
 
       try {
-        Logger.debug("Sending command to hub", { command });
+        debug("Sending command to hub", { command });
         setLoadingState(HarmonyStage.EXECUTING_COMMAND, `Sending ${command.name}...`, 0.5);
         await state.client.executeCommand(command);
         setLoadingState(HarmonyStage.CONNECTED, "Command sent successfully", 1);
@@ -374,7 +348,13 @@ function useHarmonyState(): HarmonyContextState {
   }, [discover]);
 
   return {
-    ...state,
+    hubs: state.hubs,
+    selectedHub: state.selectedHub,
+    devices: state.devices,
+    activities: state.activities,
+    currentActivity: state.currentActivity,
+    error: state.error as HarmonyError | null,
+    loadingState: state.loadingState,
     connect,
     disconnect,
     refresh,

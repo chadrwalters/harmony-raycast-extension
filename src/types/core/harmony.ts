@@ -3,7 +3,7 @@
  * @module
  */
 
-import { Logger } from "../../services/logger";
+import { debug } from "../../services/logger";
 
 /** Re-export ErrorCategory for backwards compatibility */
 export { ErrorCategory } from "./errors";
@@ -148,7 +148,7 @@ export interface TimeoutConfig {
  */
 export function isHarmonyHub(obj: unknown): obj is HarmonyHub {
   if (typeof obj !== "object" || obj === null) {
-    Logger.debug("isHarmonyHub validation failed", {
+    debug("isHarmonyHub validation failed", {
       reason: "Not an object",
       received: typeof obj,
       value: obj,
@@ -171,7 +171,7 @@ export function isHarmonyHub(obj: unknown): obj is HarmonyHub {
 
   const failures = validations.filter((v) => !v.valid);
   if (failures.length > 0) {
-    Logger.debug("isHarmonyHub validation failed", {
+    debug("isHarmonyHub validation failed", {
       failures: failures.map((f) => ({
         field: f.field,
         receivedType: typeof f.value,
@@ -192,7 +192,7 @@ export function isHarmonyHub(obj: unknown): obj is HarmonyHub {
  */
 export function isHarmonyDevice(obj: unknown): obj is HarmonyDevice {
   if (typeof obj !== "object" || obj === null) {
-    Logger.debug("isHarmonyDevice validation failed", {
+    debug("isHarmonyDevice validation failed", {
       reason: "Not an object",
       received: typeof obj,
       value: obj,
@@ -210,7 +210,7 @@ export function isHarmonyDevice(obj: unknown): obj is HarmonyDevice {
 
   const failures = validations.filter((v) => !v.valid);
   if (failures.length > 0) {
-    Logger.debug("isHarmonyDevice validation failed", {
+    debug("isHarmonyDevice validation failed", {
       failures: failures.map((f) => ({
         field: f.field,
         receivedType: typeof f.value,
@@ -231,7 +231,7 @@ export function isHarmonyDevice(obj: unknown): obj is HarmonyDevice {
       .filter((result) => !result.valid);
 
     if (invalidCommands.length > 0) {
-      Logger.debug("isHarmonyDevice validation failed", {
+      debug("isHarmonyDevice validation failed", {
         reason: "Invalid commands",
         invalidCommands: invalidCommands.map((ic) => ({
           index: ic.index,
@@ -253,7 +253,7 @@ export function isHarmonyDevice(obj: unknown): obj is HarmonyDevice {
  */
 export function isHarmonyCommand(obj: unknown): obj is HarmonyCommand {
   if (typeof obj !== "object" || obj === null) {
-    Logger.debug("isHarmonyCommand validation failed", {
+    debug("isHarmonyCommand validation failed", {
       reason: "Not an object",
       received: typeof obj,
       value: obj,
@@ -275,7 +275,7 @@ export function isHarmonyCommand(obj: unknown): obj is HarmonyCommand {
 
   const failures = validations.filter((v) => !v.valid);
   if (failures.length > 0) {
-    Logger.debug("isHarmonyCommand validation failed", {
+    debug("isHarmonyCommand validation failed", {
       failures: failures.map((f) => ({
         field: f.field,
         receivedType: typeof f.value,
@@ -287,7 +287,7 @@ export function isHarmonyCommand(obj: unknown): obj is HarmonyCommand {
 
   // Optional group validation
   if (command.group !== undefined && typeof command.group !== "string") {
-    Logger.debug("isHarmonyCommand validation failed", {
+    debug("isHarmonyCommand validation failed", {
       reason: "Invalid group type",
       receivedType: typeof command.group,
       receivedValue: command.group,
@@ -306,7 +306,7 @@ export function isHarmonyCommand(obj: unknown): obj is HarmonyCommand {
  */
 export function isHarmonyActivity(obj: unknown): obj is HarmonyActivity {
   if (typeof obj !== "object" || obj === null) {
-    Logger.debug("isHarmonyActivity validation failed", {
+    debug("isHarmonyActivity validation failed", {
       reason: "Not an object",
       received: typeof obj,
       value: obj,
@@ -324,7 +324,7 @@ export function isHarmonyActivity(obj: unknown): obj is HarmonyActivity {
 
   const failures = validations.filter((v) => !v.valid);
   if (failures.length > 0) {
-    Logger.debug("isHarmonyActivity validation failed", {
+    debug("isHarmonyActivity validation failed", {
       failures: failures.map((f) => ({
         field: f.field,
         receivedType: typeof f.value,

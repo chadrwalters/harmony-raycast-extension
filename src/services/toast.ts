@@ -6,7 +6,7 @@
 
 import { showToast, Toast } from "@raycast/api";
 
-import { Logger } from "./logger";
+import { error, info } from "./logger";
 
 /**
  * Configuration for toast notifications
@@ -49,7 +49,7 @@ export class ToastManager {
    */
   static async success(title: string, message?: string): Promise<void> {
     if (ToastManager.config.logToasts) {
-      Logger.info(`Success: ${title}${message ? ` - ${message}` : ""}`);
+      info(`Success: ${title}${message ? ` - ${message}` : ""}`);
     }
 
     await showToast({
@@ -67,7 +67,7 @@ export class ToastManager {
    */
   static async error(title: string, message?: string): Promise<void> {
     if (ToastManager.config.logToasts) {
-      Logger.error(`Error: ${title}${message ? ` - ${message}` : ""}`);
+      error(`Error: ${title}${message ? ` - ${message}` : ""}`);
     }
 
     await showToast({
@@ -85,7 +85,7 @@ export class ToastManager {
    */
   static async loading(title: string, message?: string): Promise<void> {
     if (ToastManager.config.logToasts) {
-      Logger.info(`Loading: ${title}${message ? ` - ${message}` : ""}`);
+      info(`Loading: ${title}${message ? ` - ${message}` : ""}`);
     }
 
     await showToast({
@@ -103,7 +103,7 @@ export class ToastManager {
    */
   static async progress(title: string, message?: string, progress?: number): Promise<void> {
     if (ToastManager.config.logToasts) {
-      Logger.info(
+      info(
         `Progress: ${title}${message ? ` - ${message}` : ""}${
           progress !== undefined ? ` (${Math.round(progress * 100)}%)` : ""
         }`,

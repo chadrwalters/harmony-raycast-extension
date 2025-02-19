@@ -1,166 +1,54 @@
 /**
- * State-related type definitions for Harmony Hub integration
+ * Core state type definitions for Harmony Hub integration
  * @module
  */
 
-import type { HarmonyError } from "./errors";
-import type { HarmonyHub, HarmonyDevice, HarmonyActivity } from "./harmony";
-import type { LoadingState } from "./harmony";
+import { HarmonyHub, HarmonyDevice, HarmonyActivity, LoadingState } from "./harmony";
 
 /**
- * State machine states for Harmony Hub control
+ * Represents the stage of the Harmony Hub connection process
  * @enum {string}
  */
-export enum MachineState {
-  /** Initial state */
-  IDLE = "IDLE",
-  /** Discovering available hubs */
-  DISCOVERING = "DISCOVERING",
-  /** Connecting to a hub */
-  CONNECTING = "CONNECTING",
-  /** Connected to a hub */
-  CONNECTED = "CONNECTED",
+export enum HarmonyStage {
+  /** Initial state before any connection attempt */
+  INITIAL = "initial",
+  /** Actively discovering hubs on the network */
+  DISCOVERING = "discovering",
+  /** Establishing connection to a specific hub */
+  CONNECTING = "connecting",
+  /** Loading device information from the hub */
+  LOADING_DEVICES = "loading_devices",
+  /** Loading activity information from the hub */
+  LOADING_ACTIVITIES = "loading_activities",
+  /** Starting a new activity */
+  STARTING_ACTIVITY = "starting_activity",
+  /** Stopping the current activity */
+  STOPPING_ACTIVITY = "stopping_activity",
+  /** Executing a device command */
+  EXECUTING_COMMAND = "executing_command",
+  /** Refreshing hub state */
+  REFRESHING = "refreshing",
+  /** Successfully connected and ready */
+  CONNECTED = "connected",
   /** Error state */
-  ERROR = "ERROR",
+  ERROR = "error",
 }
 
 /**
- * Context data for Harmony state machine
- * @interface MachineContext
+ * Represents the loading state during operations
+ * @interface HarmonyLoadingState
  */
-export interface MachineContext {
-  /** List of available hubs */
-  readonly hubs: readonly HarmonyHub[];
-  /** Currently selected hub */
-  readonly selectedHub: HarmonyHub | null;
-  /** Available devices on the hub */
-  readonly devices: readonly HarmonyDevice[];
-  /** Available activities on the hub */
-  readonly activities: readonly HarmonyActivity[];
-  /** Currently running activity */
-  readonly currentActivity: HarmonyActivity | null;
-  /** Error state if any */
-  readonly error: HarmonyError | null;
+export interface HarmonyLoadingState {
+  /** Current stage of the process */
+  readonly stage: HarmonyStage;
+  /** Progress from 0 to 1 */
+  readonly progress: number;
+  /** User-friendly message about the current state */
+  readonly message: string;
 }
 
 /**
- * Event payload for hub discovery
- * @interface DiscoverEvent
- */
-export interface DiscoverEvent {
-  readonly type: "DISCOVER";
-}
-
-/**
- * Event payload for hub selection
- * @interface SelectHubEvent
- */
-export interface SelectHubEvent {
-  readonly type: "SELECT_HUB";
-  /** Hub to select */
-  readonly hub: HarmonyHub;
-}
-
-/**
- * Event payload for state refresh
- * @interface RefreshEvent
- */
-export interface RefreshEvent {
-  readonly type: "REFRESH";
-}
-
-/**
- * Event payload for retrying a failed action
- * @interface RetryEvent
- */
-export interface RetryEvent {
-  readonly type: "RETRY";
-}
-
-/**
- * Event payload for clearing the state
- * @interface ClearEvent
- */
-export interface ClearEvent {
-  readonly type: "CLEAR";
-}
-
-/**
- * Event payload for hub disconnection
- * @interface DisconnectEvent
- */
-export interface DisconnectEvent {
-  readonly type: "DISCONNECT";
-}
-
-/**
- * Event payload for error state
- * @interface ErrorEvent
- */
-export interface ErrorEvent {
-  readonly type: "error.platform";
-  /** Error that occurred */
-  readonly data: HarmonyError;
-}
-
-/**
- * Event payload for done discovering hubs
- * @interface DoneDiscoverEvent
- */
-export interface DoneDiscoverEvent {
-  readonly type: "done.invoke.discoverHubs";
-  /** List of discovered hubs */
-  readonly data: {
-    readonly hubs: readonly HarmonyHub[];
-  };
-}
-
-/**
- * Event payload for done loading hub data
- * @interface DoneLoadHubEvent
- */
-export interface DoneLoadHubEvent {
-  readonly type: "done.invoke.loadHubData";
-  /** Loaded hub data */
-  readonly data: {
-    readonly devices: readonly HarmonyDevice[];
-    readonly activities: readonly HarmonyActivity[];
-  };
-}
-
-/**
- * Union type of all possible state machine events
- * @type {MachineEvent}
- */
-export type MachineEvent =
-  | DiscoverEvent
-  | SelectHubEvent
-  | DisconnectEvent
-  | RefreshEvent
-  | RetryEvent
-  | ClearEvent
-  | ErrorEvent
-  | DoneDiscoverEvent
-  | DoneLoadHubEvent;
-
-/**
- * Service types for XState
- * @interface MachineServices
- */
-export interface MachineServices {
-  readonly discoverHubs: {
-    readonly data: { readonly hubs: readonly HarmonyHub[] };
-  };
-  readonly loadHubData: {
-    readonly data: {
-      readonly devices: readonly HarmonyDevice[];
-      readonly activities: readonly HarmonyActivity[];
-    };
-  };
-}
-
-/**
- * Core state for Harmony operations
+ * Current state of the Harmony Hub system
  * @interface HarmonyState
  */
 export interface HarmonyState {
@@ -178,4 +66,6 @@ export interface HarmonyState {
   readonly error: Error | null;
   /** Current loading state */
   readonly loadingState: LoadingState;
+  /** Active client for hub communication */
+  readonly client: any | null;
 }

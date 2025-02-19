@@ -8,7 +8,7 @@ import { immer } from "zustand/middleware/immer";
 
 import { ErrorHandler } from "../services/errorHandler";
 import { LocalStorage } from "../services/localStorage";
-import { Logger } from "../services/logger";
+import { error, info } from "../services/logger";
 import { ToastManager } from "../services/toast";
 import {
   HarmonyHub,
@@ -77,10 +77,10 @@ export const useHarmonyStore = create<HarmonyStore>()(
               draft.hubs = state.hubs.map(toMutableHub);
             }
           });
-          Logger.info("Loaded persisted hub state");
+          info("Loaded persisted hub state");
         }
       } catch (err) {
-        Logger.error("Failed to load persisted hub state", err);
+        error("Failed to load persisted hub state", err);
       }
     };
 
@@ -92,9 +92,9 @@ export const useHarmonyStore = create<HarmonyStore>()(
           hubs: state.hubs,
         };
         await LocalStorage.setItem("harmony-hub-state", JSON.stringify({ state: persistedState, version: 1 }));
-        Logger.info("Saved hub state");
+        info("Saved hub state");
       } catch (err) {
-        Logger.error("Failed to save hub state", err);
+        error("Failed to save hub state", err);
       }
     };
 

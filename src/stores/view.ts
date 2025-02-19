@@ -8,7 +8,7 @@ import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 
 import { LocalStorage } from "../services/localStorage";
-import { Logger } from "../services/logger";
+import { debug, error, info } from "../services/logger";
 import { HarmonyDevice, HarmonyActivity } from "../types/core/harmony";
 import { View, ViewFilters, ViewActions, MutableViewState } from "../types/core/views";
 import { Preferences } from "../types/preferences";
@@ -25,7 +25,7 @@ type ViewStore = MutableViewState & ViewActions;
 export const useViewStore = create<ViewStore>()(
   immer((set, get) => {
     const preferences = getPreferenceValues<Preferences>();
-    Logger.debug("Initializing view store with preferences", { defaultView: preferences.defaultView });
+    debug("Initializing view store with preferences", { defaultView: preferences.defaultView });
 
     // Load persisted state
     const loadPersistedState = async (): Promise<void> => {
@@ -37,10 +37,10 @@ export const useViewStore = create<ViewStore>()(
             // Don't override the default view from preferences
             draft.filters = state.filters;
           });
-          Logger.info("Loaded persisted view state");
+          info("Loaded persisted view state");
         }
       } catch (err) {
-        Logger.error("Failed to load persisted view state", err);
+        error("Failed to load persisted view state", err);
       }
     };
 
@@ -51,9 +51,9 @@ export const useViewStore = create<ViewStore>()(
           filters: state.filters,
         };
         await LocalStorage.setItem("harmony-view-state", JSON.stringify({ state: persistedState, version: 1 }));
-        Logger.info("Saved view state");
+        info("Saved view state");
       } catch (err) {
-        Logger.error("Failed to save view state", err);
+        error("Failed to save view state", err);
       }
     };
 
@@ -61,7 +61,7 @@ export const useViewStore = create<ViewStore>()(
     loadPersistedState();
 
     const initialView = preferences.defaultView === "activities" ? View.ACTIVITIES : View.DEVICES;
-    Logger.debug("Setting initial view", { initialView });
+    debug("Setting initial view", { initialView });
 
     return {
       // Initial State
@@ -105,7 +105,7 @@ export const useViewStore = create<ViewStore>()(
       },
 
       selectDevice: (device: HarmonyDevice) => {
-        Logger.debug("Selecting device in store", { device });
+        debug("Selecting device in store", { device });
         set((state: MutableViewState) => {
           state.selectedDevice = toMutableDevice(device);
           state.currentView = View.DEVICE_DETAIL;

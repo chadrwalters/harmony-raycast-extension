@@ -8,7 +8,7 @@ import { showToast, Toast } from "@raycast/api";
 
 import { HarmonyError, ErrorCategory, ErrorSeverity, ErrorRecoveryAction } from "../types/core/errors";
 
-import { Logger } from "./logger";
+import { logError } from "./logger";
 
 /**
  * Configuration for error handling
@@ -62,7 +62,7 @@ export class ErrorHandler {
 
     // Log the error if enabled
     if (ErrorHandler.config.logErrors) {
-      Logger.logError(harmonyError, context);
+      logError(harmonyError, context);
     }
 
     // Show user feedback if enabled
@@ -83,7 +83,7 @@ export class ErrorHandler {
 
     // Log the error if enabled
     if (ErrorHandler.config.logErrors) {
-      Logger.logError(harmonyError, context);
+      logError(harmonyError, context);
     }
 
     // Show user feedback if enabled

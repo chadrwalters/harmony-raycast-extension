@@ -22,17 +22,30 @@ const DEFAULT_OPTIONS: LoggerOptions = {
  */
 export class Logger implements ILogger {
   /** Current logger configuration */
-  private static options: LoggerOptions = DEFAULT_OPTIONS;
+  private options: LoggerOptions = DEFAULT_OPTIONS;
   /** Log history */
-  private static history: LogEntry[] = [];
+  private history: LogEntry[] = [];
+
+  /** Singleton instance */
+  private static instance: Logger;
+
+  /** Get the singleton instance */
+  public static getInstance(): Logger {
+    if (!Logger.instance) {
+      Logger.instance = new Logger();
+    }
+    return Logger.instance;
+  }
+
+  private constructor() {}
 
   /**
    * Configure the logger.
    * Updates logger settings while preserving existing log history.
    * @param options - New logger options
    */
-  static configure(options: Partial<LoggerOptions>): void {
-    Logger.options = { ...DEFAULT_OPTIONS, ...options };
+  configure(options: Partial<LoggerOptions>): void {
+    this.options = { ...DEFAULT_OPTIONS, ...options };
   }
 
   /**
@@ -41,8 +54,8 @@ export class Logger implements ILogger {
    * @param message - Message to log
    * @param data - Optional data to include
    */
-  static debug(message: string, data?: unknown): void {
-    Logger.log(LogLevel.DEBUG, message, data);
+  debug(message: string, data?: unknown): void {
+    this.log(LogLevel.DEBUG, message, data);
   }
 
   /**
@@ -51,8 +64,8 @@ export class Logger implements ILogger {
    * @param message - Message to log
    * @param data - Optional data to include
    */
-  static info(message: string, data?: unknown): void {
-    Logger.log(LogLevel.INFO, message, data);
+  info(message: string, data?: unknown): void {
+    this.log(LogLevel.INFO, message, data);
   }
 
   /**
@@ -61,8 +74,8 @@ export class Logger implements ILogger {
    * @param message - Message to log
    * @param data - Optional data to include
    */
-  static warn(message: string, data?: unknown): void {
-    Logger.log(LogLevel.WARN, message, data);
+  warn(message: string, data?: unknown): void {
+    this.log(LogLevel.WARN, message, data);
   }
 
   /**
@@ -71,8 +84,8 @@ export class Logger implements ILogger {
    * @param message - Message to log
    * @param data - Optional data to include
    */
-  static error(message: string, data?: unknown): void {
-    Logger.log(LogLevel.ERROR, message, data);
+  error(message: string, data?: unknown): void {
+    this.log(LogLevel.ERROR, message, data);
   }
 
   /**
@@ -81,9 +94,9 @@ export class Logger implements ILogger {
    * @param error - Error to log
    * @param context - Optional context information
    */
-  static logError(error: Error, context?: string): void {
+  logError(error: Error, context?: string): void {
     const message = context ? `${context}: ${error.message}` : error.message;
-    Logger.error(message, {
+    this.error(message, {
       name: error.name,
       stack: error.stack,
       context,
@@ -95,16 +108,16 @@ export class Logger implements ILogger {
    * Returns a copy of the log entries.
    * @returns Array of log entries
    */
-  static getHistory(): LogEntry[] {
-    return [...Logger.history];
+  getHistory(): LogEntry[] {
+    return [...this.history];
   }
 
   /**
    * Clear the log history.
    * Removes all stored log entries.
    */
-  static clearHistory(): void {
-    Logger.history = [];
+  clearHistory(): void {
+    this.history = [];
   }
 
   /**
@@ -112,8 +125,8 @@ export class Logger implements ILogger {
    * Updates which messages will be logged.
    * @param level - New minimum log level
    */
-  static setMinLevel(level: LogLevel): void {
-    Logger.options.minLevel = level;
+  setMinLevel(level: LogLevel): void {
+    this.options.minLevel = level;
   }
 
   /**
@@ -124,8 +137,8 @@ export class Logger implements ILogger {
    * @param data - Optional data to include
    * @private
    */
-  private static log(level: LogLevel, message: string, data?: unknown): void {
-    if (level < (Logger.options.minLevel ?? LogLevel.INFO)) {
+  private log(level: LogLevel, message: string, data?: unknown): void {
+    if (level < (this.options.minLevel ?? LogLevel.INFO)) {
       return;
     }
 
@@ -136,16 +149,16 @@ export class Logger implements ILogger {
       data,
     };
 
-    Logger.history.push(entry);
+    this.history.push(entry);
 
     // Trim history if it exceeds max entries
-    if (Logger.options.maxEntries && Logger.history.length > Logger.options.maxEntries) {
-      Logger.history = Logger.history.slice(-Logger.options.maxEntries);
+    if (this.options.maxEntries && this.history.length > this.options.maxEntries) {
+      this.history = this.history.slice(-this.options.maxEntries);
     }
 
     // Log to console in development
     if (process.env.NODE_ENV === "development") {
-      const prefix = Logger.formatPrefix(entry);
+      const prefix = this.formatPrefix(entry);
       console.log(prefix, message, data ? data : "");
     }
   }
@@ -157,14 +170,14 @@ export class Logger implements ILogger {
    * @returns Formatted prefix string
    * @private
    */
-  private static formatPrefix(entry: LogEntry): string {
+  private formatPrefix(entry: LogEntry): string {
     const parts: string[] = [];
 
-    if (Logger.options.includeTimestamp) {
+    if (this.options.includeTimestamp) {
       parts.push(entry.timestamp);
     }
 
-    if (Logger.options.includeLevel) {
+    if (this.options.includeLevel) {
       parts.push(`[${LogLevel[entry.level]}]`);
     }
 
@@ -172,4 +185,21 @@ export class Logger implements ILogger {
   }
 }
 
-export type LoggerType = typeof Logger;
+// Create and export the singleton instance
+export const logger = Logger.getInstance();
+
+// Export the logger type for type checking
+export type LoggerType = Logger;
+
+// Re-export the logger instance methods for convenience
+export const {
+  debug,
+  info,
+  warn,
+  error,
+  logError,
+  getHistory,
+  clearHistory,
+  setMinLevel,
+  configure,
+} = logger;

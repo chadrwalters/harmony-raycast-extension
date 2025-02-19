@@ -3,7 +3,7 @@
  * @module
  */
 
-import { Logger } from "../services/logger";
+import { debug } from "../services/logger";
 import { HarmonyError } from "../types/core/errors";
 import { ErrorCategory } from "../types/core/harmony";
 import { HarmonyHub, HarmonyDevice, HarmonyActivity, HarmonyCommand } from "../types/core/harmony";
@@ -112,7 +112,7 @@ export function validateHubConfig(hub: Partial<HarmonyHub>): asserts hub is Harm
     );
   }
 
-  Logger.debug("Hub config validation passed", { hub });
+  debug("Hub config validation passed", { hub });
 }
 
 /**
@@ -212,7 +212,7 @@ export function validateDevice(device: Partial<HarmonyDevice>): asserts device i
     }
   });
 
-  Logger.debug("Device validation passed", { device });
+  debug("Device validation passed", { device });
 }
 
 /**
@@ -266,7 +266,7 @@ export function validateActivity(activity: Partial<HarmonyActivity>): asserts ac
     );
   }
 
-  Logger.debug("Activity validation passed", { activity });
+  debug("Activity validation passed", { activity });
 }
 
 /**
@@ -331,7 +331,7 @@ export function validateCommand(command: Partial<HarmonyCommand>): asserts comma
     );
   }
 
-  Logger.debug("Command validation passed", { command });
+  debug("Command validation passed", { command });
 }
 
 /**
@@ -372,7 +372,7 @@ export function validateNumericPreference(
     );
   }
 
-  Logger.debug(`Validated ${name}`, { value, min, max });
+  debug(`Validated ${name}`, { value, min, max });
 }
 
 /**
@@ -411,7 +411,7 @@ export function validateStringPreference(
     );
   }
 
-  Logger.debug(`Validated ${name}`, { value, allowedValues });
+  debug(`Validated ${name}`, { value, allowedValues });
 }
 
 /**
@@ -433,7 +433,7 @@ export function validateBooleanPreference(value: unknown, name: string): asserts
     );
   }
 
-  Logger.debug(`Validated ${name}`, { value });
+  debug(`Validated ${name}`, { value });
 }
 
 /**

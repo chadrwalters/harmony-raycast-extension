@@ -16,7 +16,7 @@ import {
   isHarmonyDevice,
   isHarmonyActivity,
 } from "../../types/core/harmony";
-import { Logger } from "../logger";
+import { debug, error, info, warn } from "../logger";
 
 /** Cache expiration time in milliseconds (24 hours) */
 const CACHE_EXPIRY = 24 * 60 * 60 * 1000;
@@ -142,47 +142,45 @@ export class HarmonyClient {
    */
   public async connect(): Promise<void> {
     if (this.isConnected) {
-      Logger.info(`Already connected to hub ${this.hub.name}`);
+      info(`Already connected to hub ${this.hub.name}`);
       return;
     }
 
     try {
-      Logger.info(`Initiating connection to hub ${this.hub.name} (${this.hub.ip})`);
+      info(`Initiating connection to hub ${this.hub.name} (${this.hub.ip})`);
 
       // Create client with remoteId if available for faster connection
-      Logger.debug("Creating Harmony client", {
-        hubInfo: {
-          hubIp: this.hub.ip,
-          hubId: this.hub.hubId,
-          remoteId: this.hub.remoteId,
-        },
+      debug("Creating Harmony client", {
+        ip: this.hub.ip,
+        port: this.hub.port,
+        remoteId: this.hub.remoteId,
       });
 
       this.client = await getHarmonyClient(this.hub.ip);
       this.isConnected = true;
 
-      Logger.info(`Successfully connected to hub ${this.hub.name}`);
+      info(`Successfully connected to hub ${this.hub.name}`);
 
       // Setup disconnect handler
       this.client?.on("disconnected", () => {
-        Logger.warn(`Disconnected from hub ${this.hub.name}`);
+        warn(`Disconnected from hub ${this.hub.name}`);
         this.isConnected = false;
       });
 
       // Verify connection by attempting to get config
-      Logger.debug("Verifying connection by fetching initial config");
+      debug("Verifying connection by fetching initial config");
       await this.getDevicesFromHub();
-      Logger.info("Connection verified successfully");
+      info("Connection verified successfully");
     } catch (err) {
       this.isConnected = false;
       this.client = null;
-      const error = new HarmonyError(
-        `Failed to connect to hub ${this.hub.name}`,
-        ErrorCategory.CONNECTION,
+      const harmonyError = new HarmonyError(
+        "Failed to connect to hub",
+        ErrorCategory.HUB_COMMUNICATION,
         err instanceof Error ? err : undefined,
       );
-      Logger.error("Connection failed", { error: error.getDetailedMessage() });
-      throw error;
+      error("Connection failed", { error: harmonyError.getDetailedMessage() });
+      throw harmonyError;
     }
   }
 
@@ -201,13 +199,13 @@ export class HarmonyClient {
       // Try to get from cache first
       const cached = await this.getCachedConfig();
       if (cached?.devices) {
-        Logger.info("Using cached devices for hub", this.hub.name);
+        info("Using cached devices for hub", this.hub.name);
         return cached.devices;
       }
 
       // Get from hub if not cached
       const rawDevices = await this.getDevicesFromHub();
-      Logger.debug("Mapping raw devices to HarmonyDevice", {
+      debug("Mapping raw devices to HarmonyDevice", {
         deviceCount: rawDevices.length,
         firstDevice: rawDevices[0],
       });
@@ -230,14 +228,14 @@ export class HarmonyClient {
 
         // Validate mapped device
         if (!isHarmonyDevice(mappedDevice)) {
-          Logger.error("Invalid device mapping", { device, mappedDevice });
+          error("Invalid device mapping", { device, mappedDevice });
           throw new HarmonyError(`Invalid device mapping for ${device.id}`, ErrorCategory.VALIDATION);
         }
 
         return mappedDevice;
       });
 
-      Logger.debug("Successfully mapped devices", {
+      debug("Successfully mapped devices", {
         deviceCount: mappedDevices.length,
         commandCounts: mappedDevices.map((d) => ({
           deviceId: d.id,
@@ -270,19 +268,19 @@ export class HarmonyClient {
     }
 
     try {
-      Logger.info("Fetching devices from hub", this.hub.name);
+      info("Fetching devices from hub", this.hub.name);
       const rawConfig = (await this.client.getAvailableCommands()) as RawConfig;
 
       if (!rawConfig.device || rawConfig.device.length === 0) {
-        Logger.warn("No devices found in hub config");
+        warn("No devices found in hub config");
         return [];
       }
 
-      Logger.info(`Found ${rawConfig.device.length} devices`);
+      info(`Found ${rawConfig.device.length} devices`);
 
       // Log raw config structure for first device
       if (rawConfig.device[0]) {
-        Logger.info("First device raw config:", JSON.stringify(rawConfig.device[0], null, 2));
+        info("First device raw config:", JSON.stringify(rawConfig.device[0], null, 2));
       }
 
       return rawConfig.device;
@@ -310,7 +308,7 @@ export class HarmonyClient {
       // Try to get from cache first
       const cached = await this.getCachedConfig();
       if (cached?.activities) {
-        Logger.info("Using cached activities for hub", this.hub.name);
+        info("Using cached activities for hub", this.hub.name);
         return cached.activities;
       }
 
@@ -343,7 +341,7 @@ export class HarmonyClient {
 
     try {
       const rawActivity = await this.client.getCurrentActivity();
-      Logger.debug("Got current activity from hub", { rawActivity });
+      debug("Got current activity from hub", { rawActivity });
 
       if (!rawActivity) {
         return null;
@@ -357,7 +355,7 @@ export class HarmonyClient {
       const activity = activities.find((a) => a.id === currentActivityId);
 
       if (!activity) {
-        Logger.warn("Current activity not found in activity list", {
+        warn("Current activity not found in activity list", {
           currentActivityId,
           availableActivities: activities.map((a) => a.id),
         });
@@ -371,7 +369,7 @@ export class HarmonyClient {
 
       // Validate current activity
       if (!isHarmonyActivity(currentActivity)) {
-        Logger.error("Invalid current activity", { currentActivity });
+        error("Invalid current activity", { currentActivity });
         throw new HarmonyError("Invalid current activity data", ErrorCategory.VALIDATION);
       }
 
@@ -397,7 +395,7 @@ export class HarmonyClient {
     }
 
     try {
-      Logger.debug("Starting activity", { activityId });
+      debug("Starting activity", { activityId });
 
       await this.client.startActivity(activityId);
 
@@ -408,7 +406,7 @@ export class HarmonyClient {
       while (Date.now() - startTime < maxWaitTime) {
         const currentActivity = await this.getCurrentActivity();
         if (currentActivity?.id === activityId) {
-          Logger.debug("Activity started successfully", { activityId });
+          debug("Activity started successfully", { activityId });
           return;
         }
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -435,11 +433,11 @@ export class HarmonyClient {
     }
 
     try {
-      Logger.debug("Stopping current activity");
+      debug("Stopping current activity");
 
       const currentActivity = await this.getCurrentActivity();
       if (!currentActivity) {
-        Logger.debug("No activity running");
+        debug("No activity running");
         return;
       }
 
@@ -452,7 +450,7 @@ export class HarmonyClient {
       while (Date.now() - startTime < maxWaitTime) {
         const activity = await this.getCurrentActivity();
         if (!activity) {
-          Logger.debug("Activity stopped successfully");
+          debug("Activity stopped successfully");
           return;
         }
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -486,14 +484,14 @@ export class HarmonyClient {
 
       // Check if cache is expired
       if (Date.now() - config.timestamp > CACHE_EXPIRY) {
-        Logger.info("Config cache expired for hub", this.hub.name);
+        info("Config cache expired for hub", this.hub.name);
         await LocalStorage.removeItem(this.cacheKey);
         return null;
       }
 
       return config;
     } catch (err) {
-      Logger.warn("Failed to get cached config:", err);
+      warn("Failed to get cached config:", err);
       return null;
     }
   }
@@ -512,9 +510,9 @@ export class HarmonyClient {
         timestamp: Date.now(),
       };
       await LocalStorage.setItem(this.cacheKey, JSON.stringify(cache));
-      Logger.info("Cached config for hub", this.hub.name);
+      info("Cached config for hub", this.hub.name);
     } catch (err) {
-      Logger.warn("Failed to cache config:", err);
+      warn("Failed to cache config:", err);
     }
   }
 
@@ -533,7 +531,7 @@ export class HarmonyClient {
       const preferences = getPreferenceValues<{ commandHoldTime: string }>();
       const holdTime = parseInt(preferences.commandHoldTime || "100", 10);
 
-      Logger.debug("Sending command to hub", { command });
+      debug("Sending command to hub", { command });
 
       const commandBody: HarmonyCommandBody = {
         command: command.id,
@@ -541,7 +539,7 @@ export class HarmonyClient {
         type: command.group || "IRCommand",
       };
 
-      Logger.debug("Command body:", commandBody);
+      debug("Command body:", commandBody);
 
       // Send press action
       await this.client.send("holdAction", commandBody);
@@ -612,7 +610,7 @@ export class HarmonyClient {
     };
 
     if (!isHarmonyActivity(mappedActivity)) {
-      Logger.error("Invalid activity mapping", { raw, mappedActivity });
+      error("Invalid activity mapping", { raw, mappedActivity });
       throw new HarmonyError(`Invalid activity mapping for ${raw.id}`, ErrorCategory.VALIDATION);
     }
 
@@ -633,12 +631,12 @@ export class HarmonyClient {
       if (this.isRawActivity(item)) {
         activities.push(this.mapRawActivityToHarmonyActivity(item));
       } else {
-        Logger.error("Invalid raw activity data:", item);
+        error("Invalid raw activity data:", item);
         continue;
       }
     }
 
-    Logger.debug("Got activities from hub", {
+    debug("Got activities from hub", {
       activityCount: activities.length,
       firstActivity: activities[0],
     });
@@ -652,7 +650,7 @@ export class HarmonyClient {
    */
   public async clearCache(): Promise<void> {
     try {
-      Logger.info(`Clearing cache for hub ${this.hub.name}`);
+      info(`Clearing cache for hub ${this.hub.name}`);
       await LocalStorage.removeItem(this.cacheKey);
     } catch (err) {
       throw new HarmonyError("Failed to clear cache", ErrorCategory.CACHE, err instanceof Error ? err : undefined);

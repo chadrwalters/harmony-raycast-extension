@@ -9,7 +9,7 @@ import React, { useEffect, useRef, useCallback } from "react";
 import { memo } from "react";
 
 import { useHarmony } from "../../../hooks/useHarmony";
-import { Logger } from "../../../services/logger";
+import { debug, info } from "../../../services/logger";
 import { useViewStore } from "../../../stores/view";
 import { HarmonyCommand as HarmonyCommandType, HarmonyDevice, HarmonyActivity } from "../../../types/core/harmony";
 import { View } from "../../../types/core/views";
@@ -91,7 +91,7 @@ export function HarmonyCommand(): React.ReactElement {
   // Start hub discovery on mount
   useEffect(() => {
     if (!isMounted.current) {
-      Logger.info("HarmonyCommand mounted, starting refresh");
+      info("HarmonyCommand mounted, starting refresh");
       refresh();
       isMounted.current = true;
     }
@@ -99,7 +99,7 @@ export function HarmonyCommand(): React.ReactElement {
 
   // Log state changes
   useEffect(() => {
-    Logger.debug("State updated", {
+    debug("State updated", {
       currentView,
       hubCount: hubs.length,
       selectedHub: selectedHub?.name,
@@ -114,14 +114,14 @@ export function HarmonyCommand(): React.ReactElement {
   useEffect(() => {
     // If we have a selected hub but no devices are showing, switch to hubs view
     if (!selectedHub && currentView !== View.HUBS) {
-      Logger.info("No hub selected, switching to hubs view");
+      info("No hub selected, switching to hubs view");
       viewStore.changeView(View.HUBS);
       return;
     }
 
     // If we have a selected hub and devices, switch from hubs view
     if (selectedHub && devices.length > 0 && currentView === View.HUBS) {
-      Logger.info("Hub selected with devices, switching from hubs view");
+      info("Hub selected with devices, switching from hubs view");
       viewStore.changeView(View.DEVICES); // The view store will handle the preference
     }
   }, [selectedHub, devices.length, currentView, viewStore]);
@@ -129,7 +129,7 @@ export function HarmonyCommand(): React.ReactElement {
   // Handle device detail view transitions
   useEffect(() => {
     if (currentView === View.DEVICE_DETAIL && !selectedDevice) {
-      Logger.info("No device selected, switching to devices view");
+      info("No device selected, switching to devices view");
       viewStore.changeView(View.DEVICES);
     }
   }, [currentView, selectedDevice, viewStore]);
@@ -137,18 +137,18 @@ export function HarmonyCommand(): React.ReactElement {
   // Handle device selection
   const handleDeviceSelect = useCallback(
     (device: HarmonyDevice) => {
-      Logger.debug("Device selected", { device: device.name });
+      debug("Device selected", { device: device.name });
       viewStore.selectDevice(device);
     },
     [viewStore],
   );
 
   // Handle view rendering based on current view state
-  Logger.debug("Rendering view", { currentView });
+  debug("Rendering view", { currentView });
 
   switch (currentView) {
     case View.HUBS:
-      Logger.info("Rendering HubsView", {
+      info("Rendering HubsView", {
         hubCount: hubs.length,
         selectedHub: selectedHub?.name,
         loadingState: loadingState?.stage,
@@ -156,7 +156,7 @@ export function HarmonyCommand(): React.ReactElement {
       return <HubsView onHubSelect={connect} />;
 
     case View.DEVICES:
-      Logger.info("Rendering DevicesView", {
+      info("Rendering DevicesView", {
         deviceCount: devices.length,
         loadingState: loadingState?.stage,
       });
@@ -166,7 +166,7 @@ export function HarmonyCommand(): React.ReactElement {
       if (!selectedDevice) {
         return <DevicesView onDeviceSelect={handleDeviceSelect} />;
       }
-      Logger.info("Rendering CommandsView", {
+      info("Rendering CommandsView", {
         device: selectedDevice.name,
         commandCount: selectedDevice.commands.length,
       });
@@ -179,7 +179,7 @@ export function HarmonyCommand(): React.ReactElement {
       );
 
     case View.ACTIVITIES:
-      Logger.info("Rendering ActivitiesView", {
+      info("Rendering ActivitiesView", {
         activityCount: activities.length,
         currentActivity: currentActivity?.name,
         loadingState: loadingState?.stage,
@@ -187,7 +187,7 @@ export function HarmonyCommand(): React.ReactElement {
       return <ActivitiesView onActivitySelect={(activity: HarmonyActivity) => startActivity(activity.id)} />;
 
     default:
-      Logger.info("Rendering default HubsView", {
+      info("Rendering default HubsView", {
         hubCount: hubs.length,
         selectedHub: selectedHub?.name,
         loadingState: loadingState?.stage,

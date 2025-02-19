@@ -10,7 +10,7 @@ import { LocalStorage, showToast, Toast } from "@raycast/api";
 import { HarmonyClient } from "../../services/harmony/harmonyClient";
 import { HarmonyError, ErrorCategory } from "../../types/core/errors";
 import { HarmonyHub } from "../../types/core/harmony";
-import { Logger } from "../logger";
+import { debug, error, info, warn } from "../logger";
 
 /** Discovery timeout in milliseconds */
 const DISCOVERY_TIMEOUT = 5000;
@@ -117,11 +117,11 @@ export class HarmonyManager {
     try {
       const cached = await this.getCachedHubs();
       if (cached) {
-        Logger.info(`Found ${cached.length} cached hubs`);
+        info(`Found ${cached.length} cached hubs`);
         onProgress?.(1, `Found ${cached.length} cached hub(s)`);
 
         // Verify each cached hub is still accessible
-        Logger.debug("Verifying cached hubs are accessible");
+        debug("Verifying cached hubs are accessible");
         const verifiedHubs: HarmonyHub[] = [];
         for (const hub of cached) {
           try {
@@ -129,14 +129,14 @@ export class HarmonyManager {
             await client.connect();
             await client.disconnect();
             verifiedHubs.push(hub);
-            Logger.info(`Verified hub ${hub.name} is accessible`);
+            info(`Verified hub ${hub.name} is accessible`);
           } catch (err) {
-            Logger.warn(`Cached hub ${hub.name} is no longer accessible, will be removed from cache`, err);
+            warn(`Cached hub ${hub.name} is no longer accessible, will be removed from cache`, err);
           }
         }
 
         if (verifiedHubs.length > 0) {
-          Logger.info(`${verifiedHubs.length} of ${cached.length} cached hubs verified`);
+          info(`${verifiedHubs.length} of ${cached.length} cached hubs verified`);
           if (verifiedHubs.length !== cached.length) {
             // Update cache with only verified hubs
             await this.cacheHubs(verifiedHubs);
@@ -154,16 +154,16 @@ export class HarmonyManager {
           return verifiedHubs;
         }
 
-        Logger.info("No cached hubs are accessible, proceeding with discovery");
+        info("No cached hubs are accessible, proceeding with discovery");
       }
     } catch (error) {
-      Logger.warn("Failed to read cache:", error);
+      warn("Failed to read cache:", error);
       // Continue with discovery even if cache read fails
     }
 
     // If discovery is already in progress, return the existing promise
     if (this.discoveryPromise) {
-      Logger.info("Discovery already in progress, returning existing promise");
+      info("Discovery already in progress, returning existing promise");
       return this.discoveryPromise;
     }
 
@@ -173,14 +173,14 @@ export class HarmonyManager {
 
       this.isDiscovering = true;
       onProgress?.(0, "Starting discovery process");
-      Logger.info("Starting hub discovery process");
+      info("Starting hub discovery process");
       this.explorer = new Explorer();
 
       // Create and store the discovery promise
       this.discoveryPromise = new Promise<HarmonyHub[]>((resolve, reject) => {
         if (!this.explorer) {
           const error = new HarmonyError("Explorer not initialized", ErrorCategory.STATE);
-          Logger.error("Discovery failed - explorer not initialized");
+          info("Discovery failed - explorer not initialized");
           reject(error);
           return;
         }
@@ -191,10 +191,10 @@ export class HarmonyManager {
         const completeDiscovery = async (): Promise<HarmonyHub[]> => {
           await this.cleanup();
           if (hubs.length > 0) {
-            Logger.info(`Discovery completed successfully, found ${hubs.length} hubs`);
+            info(`Discovery completed successfully, found ${hubs.length} hubs`);
             await this.cacheHubs(hubs);
           } else {
-            Logger.warn("Discovery completed but no hubs were found");
+            info("Discovery completed but no hubs were found");
           }
           resolve(hubs);
           return hubs;
@@ -202,63 +202,61 @@ export class HarmonyManager {
 
         // Set timeout to stop discovery after DISCOVERY_TIMEOUT
         const timeout = setTimeout(async () => {
-          Logger.info("Discovery timeout reached");
+          info("Discovery timeout reached");
           await completeDiscovery();
         }, DISCOVERY_TIMEOUT);
 
         this.explorer.on("online", (data: HubDiscoveryData) => {
           try {
-            Logger.debug("Received hub data", { data });
+            debug("Received hub data", { data });
             const hub = this.createHub(data);
 
             // Check for duplicate hubs
             if (!hubs.some((h) => h.hubId === hub.hubId)) {
               hubs.push(hub);
-              Logger.info(`Found hub: ${hub.name} (${hub.ip})`);
+              info(`Found hub: ${hub.name} (${hub.ip})`);
               onProgress?.(0.5, `Found hub: ${hub.name}`);
 
-              // Clear any existing completion timeout
+              // If we found a hub, wait a bit longer for others
               if (this.completeTimeout) {
                 clearTimeout(this.completeTimeout);
               }
-
-              // Set a new completion timeout
               this.completeTimeout = setTimeout(async () => {
-                clearTimeout(timeout);
                 await completeDiscovery();
               }, DISCOVERY_COMPLETE_DELAY);
             } else {
-              Logger.info(`Skipping duplicate hub: ${hub.name} (${hub.ip})`);
+              info(`Skipping duplicate hub: ${hub.name} (${hub.ip})`);
             }
-          } catch (error) {
-            Logger.error("Failed to process hub data:", error);
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            error("Failed to process hub data:", errorMessage);
             // Don't reject here, just log and continue discovery
           }
         });
 
-        this.explorer.on("error", async (error: Error) => {
-          Logger.error("Discovery error:", error);
+        this.explorer.on("error", async (err: Error) => {
+          error("Discovery error:", err.message);
           clearTimeout(timeout);
           if (this.completeTimeout) {
             clearTimeout(this.completeTimeout);
           }
-          await this.cleanup();
-          reject(new HarmonyError("Hub discovery failed", ErrorCategory.HUB_COMMUNICATION, error));
+          await completeDiscovery();
+          reject(err);
         });
 
         // Start discovery
-        Logger.debug("Starting explorer");
+        debug("Starting explorer");
         this.explorer.start();
       });
 
       // Return the discovery promise
       return await this.discoveryPromise;
-    } catch (error) {
-      Logger.error("Failed to start discovery:", error);
-      throw new HarmonyError("Failed to start hub discovery", ErrorCategory.HUB_COMMUNICATION, error as Error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      error("Failed to start discovery:", errorMessage);
+      throw new HarmonyError("Failed to start hub discovery", ErrorCategory.HUB_COMMUNICATION, err instanceof Error ? err : undefined);
     } finally {
       this.isDiscovering = false;
-      this.discoveryPromise = null;
     }
   }
 
@@ -286,9 +284,9 @@ export class HarmonyManager {
         timestamp: Date.now(),
       };
       await LocalStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-      Logger.info(`Cached ${hubs.length} hubs`);
+      info(`Cached ${hubs.length} hubs`);
     } catch (error) {
-      Logger.warn("Failed to cache hubs:", error);
+      warn("Failed to cache hubs:", error);
       throw new HarmonyError("Failed to cache hubs", ErrorCategory.STORAGE, error as Error);
     }
   }
@@ -308,7 +306,7 @@ export class HarmonyManager {
 
       // Check if cache is expired
       if (Date.now() - timestamp > CACHE_TTL) {
-        Logger.info("Cache expired");
+        info("Cache expired");
         await LocalStorage.removeItem(CACHE_KEY);
         return null;
       }
@@ -316,7 +314,7 @@ export class HarmonyManager {
       // Validate cached hub data
       for (const hub of hubs) {
         if (!hub.id || !hub.name || !hub.ip || !hub.hubId) {
-          Logger.warn("Invalid hub data in cache, clearing cache");
+          warn("Invalid hub data in cache, clearing cache");
           await LocalStorage.removeItem(CACHE_KEY);
           return null;
         }
@@ -324,7 +322,7 @@ export class HarmonyManager {
 
       return hubs;
     } catch (error) {
-      Logger.warn("Failed to get cached hubs:", error);
+      warn("Failed to get cached hubs:", error);
       throw new HarmonyError("Failed to read hub cache", ErrorCategory.STORAGE, error as Error);
     }
   }
@@ -334,23 +332,18 @@ export class HarmonyManager {
    * Stops the explorer and clears timeouts.
    */
   public async cleanup(): Promise<void> {
-    if (this.explorer) {
-      try {
+    try {
+      if (this.explorer) {
         this.explorer.stop();
         this.explorer.removeAllListeners();
-      } catch (error) {
-        Logger.error("Error stopping explorer:", error);
       }
-      this.explorer = null;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      error("Error stopping explorer:", errorMessage);
     }
-
-    if (this.completeTimeout) {
-      clearTimeout(this.completeTimeout);
-      this.completeTimeout = null;
-    }
-
-    this.isDiscovering = false;
+    this.explorer = null;
     this.discoveryPromise = null;
+    this.completeTimeout = null;
   }
 
   /**
@@ -359,20 +352,25 @@ export class HarmonyManager {
    */
   public async clearAllCaches(): Promise<void> {
     try {
-      Logger.info("Clearing all Harmony caches");
+      info("Clearing all Harmony caches");
 
       // Clear hub discovery cache
-      await this.clearCache();
+      await LocalStorage.removeItem(CACHE_KEY);
 
-      // Clear all hub config caches
-      const keys = await LocalStorage.allItems();
-      for (const key of Object.keys(keys)) {
-        if (key.startsWith("harmony-config-")) {
-          await LocalStorage.removeItem(key);
+      // Clear hub-specific caches
+      const hubs = await this.getCachedHubs();
+      if (hubs) {
+        for (const hub of hubs) {
+          const client = new HarmonyClient(hub);
+          await client.clearCache();
         }
       }
+
+      info("All caches cleared");
     } catch (err) {
-      throw new HarmonyError("Failed to clear caches", ErrorCategory.CACHE, err instanceof Error ? err : undefined);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      error("Failed to clear caches:", errorMessage);
+      throw new HarmonyError("Failed to clear caches", ErrorCategory.STORAGE, err instanceof Error ? err : undefined);
     }
   }
 
@@ -383,7 +381,7 @@ export class HarmonyManager {
    */
   public async clearCache(): Promise<void> {
     try {
-      Logger.info("Clearing all Harmony caches");
+      info("Clearing all Harmony caches");
 
       // Clear hub cache
       await LocalStorage.removeItem(CACHE_KEY);
@@ -396,10 +394,11 @@ export class HarmonyManager {
         }
       }
 
-      Logger.info("All caches cleared");
-    } catch (error) {
-      Logger.error("Failed to clear caches:", error);
-      throw new HarmonyError("Failed to clear caches", ErrorCategory.STORAGE, error as Error);
+      info("All caches cleared");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      error("Failed to clear caches:", { error: errorMessage });
+      throw new HarmonyError("Failed to clear caches", ErrorCategory.STORAGE, err instanceof Error ? err : undefined);
     }
   }
 }

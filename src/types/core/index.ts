@@ -1,5 +1,5 @@
 /**
- * Core types and utilities for Harmony Hub integration
+ * Core type definitions for Harmony Hub integration
  * @module
  */
 
@@ -17,21 +17,27 @@ export type {
   // Harmony types
   HarmonyHub,
   HarmonyDevice,
-  HarmonyCommand,
   HarmonyActivity,
+  HarmonyCommand,
   LoadingState,
+  HarmonyMessage,
+  MessageHandler,
+  HubDiscoveryHandler,
 } from "./harmony";
 
 // Re-export commonly used enums
 export {
   // Harmony enums
   HarmonyStage,
-  ErrorCategory,
-} from "./harmony";
+} from "./state";
 
 // Re-export error types
-export { HarmonyError, ErrorSeverity, ErrorRecoveryAction } from "./errors";
-export type { RetryContext } from "./errors";
+export {
+  HarmonyError,
+  ErrorCategory,
+  ErrorSeverity,
+  ErrorRecoveryAction,
+} from "./errors";
 
 // Re-export validation functions
 export { validateHub, validateDevice, validateCommand, validateActivity, validateLoadingState } from "./validation";
@@ -42,9 +48,14 @@ export type { CommandQueueConfig, CommandRequest, CommandResult, RetryConfig, Ti
 export { CommandStatus } from "./command";
 
 // Re-export logging types
-export type { LoggerOptions, LogEntry, ILogger, LogFilter, LogFormatter } from "./logging";
-
-export { LogLevel } from "./logging";
+export type {
+  LogLevel,
+  LogEntry,
+  LoggerOptions,
+  ILogger,
+  LogFilter,
+  LogFormatter,
+} from "./logging";
 
 // Re-export WebSocket types
 export type {
@@ -64,19 +75,24 @@ export { WebSocketConnectionStatus, WebSocketMessageType } from "./websocket";
 
 // Re-export state types
 export type {
-  MachineContext,
-  DiscoverEvent,
-  SelectHubEvent,
-  RefreshEvent,
-  RetryEvent,
-  ClearEvent,
-  DisconnectEvent,
-  ErrorEvent,
-  DoneDiscoverEvent,
-  DoneLoadHubEvent,
-  MachineEvent,
-  MachineServices,
+  View,
+  ViewFilters,
+  ViewActions,
+  MutableViewState,
+} from "./views";
+
+export {
+  isHarmonyHub,
+  isHarmonyDevice,
+  isHarmonyActivity,
+  isHarmonyCommand,
+  validateHarmonyHub,
+  validateHarmonyDevice,
+  validateHarmonyActivity,
+  validateHarmonyCommand,
+} from "./harmony";
+
+export type {
+  HarmonyLoadingState,
   HarmonyState,
 } from "./state";
-
-export { MachineState } from "./state";
