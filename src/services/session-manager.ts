@@ -1,54 +1,49 @@
+/**
+ * Session management service for Harmony Hub integration.
+ * Handles user session state, persistence, and cache management.
+ * @module
+ */
+
 import { LocalStorage } from "@raycast/api";
-import { ToastManager } from "../ui/toast-manager";
+
+import { ToastManager } from "../services/toast";
 
 /**
  * Interface representing a user session.
+ * Contains authentication and state information.
+ * @interface Session
  */
 interface Session {
-  /**
-   * The session token.
-   */
+  /** Authentication token for the session */
   token: string;
-  /**
-   * The timestamp when the session expires.
-   */
+  /** Timestamp when the session expires */
   expiresAt: number;
-  /**
-   * The timestamp of the last activity.
-   */
+  /** Timestamp of the last user activity */
   lastActivity: number;
 }
 
 /**
  * SessionManager class handles user session state and persistence.
- * It provides methods for storing and retrieving session data securely.
+ * Provides methods for storing and retrieving session data securely.
+ * Manages session expiration and inactivity timeouts.
  */
 export class SessionManager {
-  /**
-   * The key used to store the session in local storage.
-   */
+  /** Key for storing session data in local storage */
   private static readonly SESSION_KEY = "harmony_session";
-  /**
-   * The key used to store the cache in local storage.
-   */
+  /** Key for storing general cache data */
   private static readonly CACHE_KEY = "harmony_cache";
-  /**
-   * The key used to store the hub cache in local storage.
-   */
+  /** Key for storing hub-specific cache data */
   private static readonly HUB_CACHE_KEY = "harmony_hub_cache";
-  /**
-   * The duration of a session in milliseconds (24 hours).
-   */
+  /** Duration of a session in milliseconds (24 hours) */
   private static readonly SESSION_DURATION = 24 * 60 * 60 * 1000;
-  /**
-   * The threshold for session inactivity in milliseconds (30 minutes).
-   */
+  /** Threshold for session inactivity in milliseconds (30 minutes) */
   private static readonly ACTIVITY_THRESHOLD = 30 * 60 * 1000;
 
   /**
    * Creates a new session with the given token.
-   * @param token The session token.
-   * @returns Promise<void>
+   * Sets expiration and activity timestamps.
+   * @param token - The session token to store
+   * @returns Promise that resolves when the session is created
    */
   static async createSession(token: string): Promise<void> {
     const session: Session = {
@@ -61,8 +56,10 @@ export class SessionManager {
   }
 
   /**
-   * Retrieves the current session.
-   * @returns Promise<Session | null> The current session or null if not found.
+   * Retrieves the current session if valid.
+   * Checks for expiration and inactivity.
+   * Updates last activity timestamp if session is valid.
+   * @returns Promise resolving to the current session or null if invalid/expired
    */
   static async getSession(): Promise<Session | null> {
     try {
@@ -99,24 +96,28 @@ export class SessionManager {
 
   /**
    * Clears the current session.
-   * @returns Promise<void>
+   * Removes session data from local storage.
+   * @returns Promise that resolves when the session is cleared
    */
   static async clearSession(): Promise<void> {
     await LocalStorage.removeItem(this.SESSION_KEY);
   }
 
   /**
-   * Clears the cache.
-   * @returns Promise<void>
+   * Clears all cached data.
+   * Removes both general and hub-specific caches.
+   * Shows success toast on completion.
+   * @returns Promise that resolves when caches are cleared
    */
   static async clearCache(): Promise<void> {
     await Promise.all([LocalStorage.removeItem(this.CACHE_KEY), LocalStorage.removeItem(this.HUB_CACHE_KEY)]);
-    ToastManager.success("Cache cleared successfully");
+    await ToastManager.success("Cache cleared successfully");
   }
 
   /**
    * Validates the current session.
-   * @returns Promise<boolean> True if the session is valid, false otherwise.
+   * Shows error toast if session is invalid.
+   * @returns Promise resolving to true if session is valid, false otherwise
    */
   static async validateSession(): Promise<boolean> {
     const session = await this.getSession();

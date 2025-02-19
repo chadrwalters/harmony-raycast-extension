@@ -3,7 +3,7 @@
  * @module
  */
 
-import type { HarmonyActivity, HarmonyDevice, HarmonyCommand } from "./harmony";
+import { HarmonyActivity, HarmonyDevice } from "./harmony";
 
 /**
  * WebSocket connection status
@@ -15,7 +15,7 @@ export enum WebSocketConnectionStatus {
   /** The WebSocket connection is being established */
   CONNECTING = "connecting",
   /** The WebSocket connection is established */
-  CONNECTED = "connected"
+  CONNECTED = "connected",
 }
 
 /**
@@ -32,7 +32,7 @@ export enum WebSocketMessageType {
   /** Request to get devices */
   GET_DEVICES = "getdevices",
   /** Request to execute a command */
-  EXECUTE_COMMAND = "executecommand"
+  EXECUTE_COMMAND = "executecommand",
 }
 
 /**
@@ -164,4 +164,4 @@ export interface QueuedMessage<T> {
   readonly reject: (error: Error) => void;
   /** Timestamp for the message */
   readonly timestamp: number;
-} 
+}

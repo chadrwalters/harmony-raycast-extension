@@ -3,15 +3,16 @@
  * @module
  */
 
+import { getPreferenceValues } from "@raycast/api";
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import { View, ViewState, ViewFilters, ViewActions, MutableViewState } from "../types/core/views";
-import { HarmonyDevice, HarmonyActivity } from "../types/core/harmony";
-import { getPreferenceValues } from "@raycast/api";
-import { Preferences } from "../types/preferences";
-import { toMutableDevice, toMutableActivity } from "../utils/state";
+
 import { LocalStorage } from "../services/localStorage";
 import { Logger } from "../services/logger";
+import { HarmonyDevice, HarmonyActivity } from "../types/core/harmony";
+import { View, ViewFilters, ViewActions, MutableViewState } from "../types/core/views";
+import { Preferences } from "../types/preferences";
+import { toMutableDevice, toMutableActivity } from "../utils/state";
 
 /**
  * Combined store type with state and actions
@@ -27,7 +28,7 @@ export const useViewStore = create<ViewStore>()(
     Logger.debug("Initializing view store with preferences", { defaultView: preferences.defaultView });
 
     // Load persisted state
-    const loadPersistedState = async () => {
+    const loadPersistedState = async (): Promise<void> => {
       try {
         const persistedJSON = await LocalStorage.getItem("harmony-view-state");
         if (persistedJSON) {
@@ -44,15 +45,12 @@ export const useViewStore = create<ViewStore>()(
     };
 
     // Save state changes
-    const saveState = async (state: ViewStore) => {
+    const saveState = async (state: ViewStore): Promise<void> => {
       try {
         const persistedState = {
           filters: state.filters,
         };
-        await LocalStorage.setItem(
-          "harmony-view-state",
-          JSON.stringify({ state: persistedState, version: 1 })
-        );
+        await LocalStorage.setItem("harmony-view-state", JSON.stringify({ state: persistedState, version: 1 }));
         Logger.info("Saved view state");
       } catch (err) {
         Logger.error("Failed to save view state", err);
@@ -152,19 +150,19 @@ export const useViewStore = create<ViewStore>()(
         saveState(get());
       },
     };
-  })
+  }),
 );
 
 // Selectors
-export const selectCurrentView = (state: ViewStore) => state.currentView;
-export const selectSelectedDevice = (state: ViewStore) => state.selectedDevice;
-export const selectSelectedActivity = (state: ViewStore) => state.selectedActivity;
-export const selectSearchQuery = (state: ViewStore) => state.searchQuery;
-export const selectFilters = (state: ViewStore) => state.filters;
+export const selectCurrentView = (state: ViewStore): View => state.currentView;
+export const selectSelectedDevice = (state: ViewStore): HarmonyDevice | null => state.selectedDevice;
+export const selectSelectedActivity = (state: ViewStore): HarmonyActivity | null => state.selectedActivity;
+export const selectSearchQuery = (state: ViewStore): string => state.searchQuery;
+export const selectFilters = (state: ViewStore): ViewFilters => state.filters;
 
 // Derived selectors
-export const selectIsDetailView = (state: ViewStore) =>
+export const selectIsDetailView = (state: ViewStore): boolean =>
   state.currentView === View.DEVICE_DETAIL || state.currentView === View.ACTIVITY_DETAIL;
 
-export const selectCanGoBack = (state: ViewStore) =>
-  state.currentView === View.DEVICE_DETAIL || state.currentView === View.ACTIVITY_DETAIL; 
+export const selectCanGoBack = (state: ViewStore): boolean =>
+  state.currentView === View.DEVICE_DETAIL || state.currentView === View.ACTIVITY_DETAIL;

@@ -1,76 +1,47 @@
-import { List, Icon, ActionPanel, Action } from "@raycast/api";
-import { memo, useCallback } from "react";
-import { HarmonyDevice, HarmonyCommand } from "../../../types/core/harmony";
-import { Logger } from "../../../services/logger";
-import { useViewStore } from "../../../stores/view";
-import { View } from "../../../types/core/views";
+import { List, Icon, Action, ActionPanel } from "@raycast/api";
+import { memo } from "react";
+
+import { useHarmony } from "../../../hooks/useHarmony";
+import { HarmonyCommand } from "../../../types/core/harmony";
 
 interface CommandsViewProps {
-  device: HarmonyDevice;
+  commands: HarmonyCommand[];
   onExecuteCommand: (command: HarmonyCommand) => void;
-  onBack: () => void;
+  onBack?: () => void;
 }
 
-interface CommandListItemProps {
-  command: HarmonyCommand;
-  onExecute: (command: HarmonyCommand) => void;
-  onBack: () => void;
-}
-
-const CommandListItem = memo(({ command, onExecute, onBack }: CommandListItemProps) => (
-  <List.Item
-    key={command.id}
-    title={command.label}
-    icon={Icon.Terminal}
-    actions={
-      <ActionPanel>
-        <ActionPanel.Section>
-          <Action
-            title={`Execute ${command.label}`}
-            onAction={() => onExecute(command)}
-          />
-        </ActionPanel.Section>
-        <ActionPanel.Section>
-          <Action
-            title="Back to Devices"
-            icon={Icon.ArrowLeft}
-            onAction={onBack}
-            shortcut={{ modifiers: ["cmd"], key: "[" }}
-          />
-        </ActionPanel.Section>
-      </ActionPanel>
-    }
-  />
-));
-
-function CommandsViewImpl({ device, onExecuteCommand, onBack }: CommandsViewProps) {
-  const viewStore = useViewStore();
-
-  const handleExecuteCommand = useCallback((command: HarmonyCommand) => {
-    Logger.debug("Executing command", { command });
-    onExecuteCommand(command);
-  }, [onExecuteCommand]);
-
-  const handleBack = useCallback(() => {
-    viewStore.clearSelection();
-    viewStore.changeView(View.DEVICES);
-  }, [viewStore]);
+function CommandsViewImpl({ commands, onExecuteCommand, onBack }: CommandsViewProps): JSX.Element {
+  const { refresh, clearCache } = useHarmony();
 
   return (
     <List
-      navigationTitle={`${device.name} Commands`}
+      navigationTitle="Commands"
       searchBarPlaceholder="Search commands..."
+      isLoading={false}
+      isShowingDetail={false}
     >
-      {device.commands.map((command) => (
-        <CommandListItem
+      {commands.map((command) => (
+        <List.Item
           key={command.id}
-          command={command}
-          onExecute={handleExecuteCommand}
-          onBack={handleBack}
+          title={command.label}
+          subtitle={command.name}
+          icon={Icon.Terminal}
+          actions={
+            <ActionPanel>
+              <ActionPanel.Section>
+                <Action title="Execute Command" icon={Icon.Terminal} onAction={() => onExecuteCommand(command)} />
+              </ActionPanel.Section>
+              <ActionPanel.Section>
+                {refresh && <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} />}
+                {clearCache && <Action title="Clear Cache" icon={Icon.Trash} onAction={clearCache} />}
+                {onBack && <Action title="Back" icon={Icon.ArrowLeft} onAction={onBack} />}
+              </ActionPanel.Section>
+            </ActionPanel>
+          }
         />
       ))}
     </List>
   );
 }
 
-export const CommandsView = memo(CommandsViewImpl); 
+export const CommandsView = memo(CommandsViewImpl);

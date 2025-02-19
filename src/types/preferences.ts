@@ -12,4 +12,8 @@ export interface Preferences {
   autoRetry: boolean;
   /** The maximum number of retries */
   maxRetries: string;
+  /** The cache duration in seconds */
+  cacheDuration: string;
+  /** The network timeout in milliseconds */
+  networkTimeout: string;
 }

@@ -3,13 +3,7 @@
  * @module
  */
 
-import type {
-  HarmonyHub,
-  HarmonyDevice,
-  HarmonyActivity,
-  HarmonyCommand,
-  LoadingState,
-} from "./harmony";
+import type { HarmonyHub, HarmonyDevice, HarmonyActivity, HarmonyCommand, LoadingState } from "./harmony";
 
 /**
  * Mutable version of HarmonyHub
@@ -142,4 +136,4 @@ export function toMutableLoadingState(state: LoadingState): MutableLoadingState 
     progress: state.progress,
     message: state.message,
   };
-} 
+}

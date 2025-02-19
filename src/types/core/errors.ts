@@ -1,98 +1,95 @@
 /**
- * Error type definitions for Harmony Hub integration
+ * Custom error types for Harmony Hub integration
  * @module
  */
 
-import { ErrorCategory, TimeoutConfig } from "./harmony";
-
-// Re-export ErrorCategory and TimeoutConfig for convenience
-export { ErrorCategory } from "./harmony";
-export type { TimeoutConfig } from "./harmony";
+/**
+ * Categories of errors that can occur
+ */
+export enum ErrorCategory {
+  /** Network or connection errors */
+  CONNECTION = "CONNECTION",
+  /** Hub communication errors */
+  HUB_COMMUNICATION = "HUB_COMMUNICATION",
+  /** Command execution errors */
+  COMMAND_EXECUTION = "COMMAND_EXECUTION",
+  /** Activity start errors */
+  ACTIVITY_START = "ACTIVITY_START",
+  /** Activity stop errors */
+  ACTIVITY_STOP = "ACTIVITY_STOP",
+  /** Cache-related errors */
+  CACHE = "CACHE",
+  /** Storage-related errors */
+  STORAGE = "STORAGE",
+  /** State validation errors */
+  STATE = "STATE",
+  /** Data validation errors */
+  VALIDATION = "VALIDATION",
+  /** Discovery errors */
+  DISCOVERY = "DISCOVERY",
+  /** Unknown errors */
+  UNKNOWN = "UNKNOWN",
+}
 
 /**
- * Error severity levels
+ * Severity levels for errors
  */
 export enum ErrorSeverity {
-  /** Informational issues that don't affect functionality */
-  INFO = "info",
-  /** Minor issues that may affect some functionality */
-  WARNING = "warning",
-  /** Serious issues that affect core functionality */
-  ERROR = "error",
-  /** Critical issues that prevent operation */
-  CRITICAL = "critical"
+  /** Warning level - operation can continue */
+  WARNING = "WARNING",
+  /** Error level - operation cannot continue */
+  ERROR = "ERROR",
+  /** Fatal level - application cannot continue */
+  FATAL = "FATAL",
 }
 
 /**
- * Recovery actions available for different error types
- */
-export enum ErrorRecoveryAction {
-  /** Retry the failed operation */
-  RETRY = "retry",
-  /** Reconnect to the hub */
-  RECONNECT = "reconnect",
-  /** Clear local cache */
-  CLEAR_CACHE = "clear_cache",
-  /** Reset configuration */
-  RESET_CONFIG = "reset_config",
-  /** Restart the hub */
-  RESTART = "restart",
-  /** Manual intervention required */
-  MANUAL = "manual"
-}
-
-/**
- * Configuration for retry behavior
- */
-export interface RetryConfig {
-  /** Maximum number of retry attempts */
-  maxAttempts: number;
-  /** Base delay between retries in milliseconds */
-  baseDelay: number;
-  /** Maximum delay between retries in milliseconds */
-  maxDelay: number;
-  /** Whether to use exponential backoff */
-  useExponentialBackoff: boolean;
-  /** Maximum total retry duration in milliseconds */
-  maxRetryDuration?: number;
-  /** Categories that should not be retried */
-  nonRetryableCategories?: ErrorCategory[];
-}
-
-/**
- * Context for retry attempts
+ * Context for retryable operations
  */
 export interface RetryContext {
-  /** Number of retry attempts made */
-  attempts: number;
-  /** Total time spent retrying in milliseconds */
-  totalDuration: number;
-  /** Whether max retries has been reached */
-  maxRetriesReached: boolean;
-  /** Success rate of retry attempts */
-  successRate?: number;
+  /** Number of attempts made */
+  readonly attempts: number;
+  /** Maximum number of attempts allowed */
+  readonly maxAttempts: number;
+  /** Timestamp of the last attempt */
+  readonly lastAttemptTimestamp: number;
+  /** Delay between attempts in milliseconds */
+  readonly delayMs: number;
 }
 
 /**
- * Strategy for error recovery
+ * Strategy for recovering from errors
  */
 export interface ErrorRecoveryStrategy {
-  /** Actions to take for recovery */
-  actions: ErrorRecoveryAction[];
-  /** Priority of this strategy (lower is higher priority) */
-  priority: number;
-  /** Whether recovery can be automatic */
-  automatic: boolean;
-  /** Maximum attempts for this strategy */
-  maxAttempts: number;
-  /** Delay between attempts in milliseconds */
-  delayBetweenAttempts: number;
+  /** Name of the recovery strategy */
+  readonly name: string;
+  /** Description of what the strategy does */
+  readonly description: string;
+  /** Whether the strategy can be automated */
+  readonly isAutomatic: boolean;
+  /** Steps to perform for recovery */
+  readonly steps: string[];
 }
 
 /**
- * Custom error class for Harmony-related errors
- * @class HarmonyError
- * @extends Error
+ * Details that can be included with errors
+ */
+export interface ErrorDetails {
+  /** Type of the invalid value */
+  type?: string;
+  /** Minimum allowed value */
+  min?: number;
+  /** Maximum allowed value */
+  max?: number;
+  /** List of allowed values */
+  allowedValues?: readonly string[];
+  /** Additional context */
+  [key: string]: unknown;
+}
+
+/**
+ * Custom error class for Harmony Hub operations
+ * Provides detailed error information and categorization
  */
 export class HarmonyError extends Error {
   /** The category of the error */
@@ -108,23 +105,23 @@ export class HarmonyError extends Error {
   /** Error code if any */
   readonly code?: string;
   /** Additional error details */
-  readonly details?: Record<string, unknown>;
+  readonly details?: ErrorDetails;
   /** Recovery strategies */
   readonly recoveryStrategies?: ErrorRecoveryStrategy[];
   /** Timestamp when error occurred */
   readonly timestamp: number;
 
   /**
-   * Creates a new HarmonyError
-   * @param message The error message
-   * @param category The category of the error
-   * @param cause The original error that caused this error, if any
-   * @param retryContext Retry attempt context if applicable
-   * @param isRetryable Whether the error can be retried
-   * @param code Error code if any
-   * @param details Additional error details
-   * @param severity Error severity level
-   * @param recoveryStrategies Available recovery strategies
+   * Creates a new HarmonyError instance
+   * @param message - User-friendly error message
+   * @param category - Category of the error
+   * @param cause - Original error that caused this error
+   * @param retryContext - Context for retryable operations
+   * @param isRetryable - Whether the operation can be retried
+   * @param code - Error code for specific error types
+   * @param details - Additional error details
+   * @param severity - Severity level of the error
+   * @param recoveryStrategies - Strategies for recovering from the error
    */
   constructor(
     message: string,
@@ -133,9 +130,9 @@ export class HarmonyError extends Error {
     retryContext?: RetryContext,
     isRetryable = true,
     code?: string,
-    details?: Record<string, unknown>,
+    details?: ErrorDetails,
     severity: ErrorSeverity = ErrorSeverity.ERROR,
-    recoveryStrategies?: ErrorRecoveryStrategy[]
+    recoveryStrategies?: ErrorRecoveryStrategy[],
   ) {
     super(message);
     this.name = "HarmonyError";
@@ -156,251 +153,50 @@ export class HarmonyError extends Error {
   }
 
   /**
-   * Gets a user-friendly message for this error
-   * @returns A user-friendly error message
+   * Gets a user-friendly error message suitable for display
+   * @returns User-friendly error message with severity prefix
    */
-  public getUserMessage(): string {
-    const baseMessage = this.getBaseUserMessage();
-    const recoveryMessage = this.getRecoveryMessage();
-    return recoveryMessage ? `${baseMessage}\n\n${recoveryMessage}` : baseMessage;
+  getUserMessage(): string {
+    const prefix = this.severity === ErrorSeverity.WARNING ? "Warning" : "Error";
+    return `${prefix}: ${this.message}`;
   }
 
   /**
-   * Gets a detailed error message including the cause if available
-   * @returns A detailed error message
+   * Gets a detailed error message including all error information
+   * Useful for logging and debugging
+   * @returns Detailed multi-line error message
    */
-  public getDetailedMessage(): string {
-    let message = `${this.message} (${this.category})`;
+  getDetailedMessage(): string {
+    const details: string[] = [
+      `Error: ${this.message}`,
+      `Category: ${this.category}`,
+      `Severity: ${this.severity}`,
+      `Timestamp: ${new Date(this.timestamp).toISOString()}`,
+      `Retryable: ${this.isRetryable}`,
+    ];
+
     if (this.code) {
-      message += `\nCode: ${this.code}`;
+      details.push(`Code: ${this.code}`);
     }
+
+    if (this.retryContext) {
+      details.push(
+        `Retry Attempts: ${this.retryContext.attempts}/${this.retryContext.maxAttempts}`,
+        `Last Attempt: ${new Date(this.retryContext.lastAttemptTimestamp).toISOString()}`,
+      );
+    }
+
     if (this.cause) {
-      message += `\nCaused by: ${this.cause.message}`;
-    }
-    if (this.details) {
-      message += `\nDetails: ${JSON.stringify(this.details)}`;
-    }
-    return message;
-  }
-
-  /**
-   * Create a new error with updated retry context
-   */
-  public withRetryContext(retryContext: RetryContext): HarmonyError {
-    return new HarmonyError(
-      this.message,
-      this.category,
-      this.cause,
-      retryContext,
-      this.isRetryable,
-      this.code,
-      this.details,
-      this.severity,
-      this.recoveryStrategies
-    );
-  }
-
-  /**
-   * Create a new error with updated recovery strategies
-   */
-  public withRecoveryStrategies(strategies: ErrorRecoveryStrategy[]): HarmonyError {
-    return new HarmonyError(
-      this.message,
-      this.category,
-      this.cause,
-      this.retryContext,
-      this.isRetryable,
-      this.code,
-      this.details,
-      this.severity,
-      strategies
-    );
-  }
-
-  /**
-   * Check if error should be retried based on category and context
-   */
-  public shouldRetry(config: RetryConfig): boolean {
-    if (!this.isRetryable) return false;
-    if (!this.retryContext) return true;
-    if (this.retryContext.maxRetriesReached) return false;
-
-    // Don't retry if we've exceeded max attempts
-    if (this.retryContext.attempts >= config.maxAttempts) return false;
-
-    // Don't retry if we've exceeded max duration
-    if (config.maxRetryDuration && this.retryContext.totalDuration >= config.maxRetryDuration) {
-      return false;
-    }
-
-    // Don't retry certain error categories
-    const nonRetryableCategories = config.nonRetryableCategories || [];
-    if (nonRetryableCategories.includes(this.category)) return false;
-
-    // Don't retry if success rate is too low
-    if (this.retryContext.successRate !== undefined && this.retryContext.successRate < 0.2) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Calculate next retry delay using exponential backoff
-   */
-  public getRetryDelay(config: RetryConfig): number {
-    if (!this.retryContext) return config.baseDelay;
-
-    const { attempts } = this.retryContext;
-    const { baseDelay, maxDelay, useExponentialBackoff } = config;
-
-    if (!useExponentialBackoff) return baseDelay;
-
-    // Calculate delay with exponential backoff
-    const delay = Math.min(
-      baseDelay * Math.pow(2, attempts),
-      maxDelay
-    );
-
-    // Add jitter to prevent thundering herd
-    return delay * (0.5 + Math.random());
-  }
-
-  /**
-   * Get recommended recovery strategy
-   */
-  public getRecoveryStrategy(): ErrorRecoveryStrategy | null {
-    if (!this.recoveryStrategies || this.recoveryStrategies.length === 0) {
-      return this.getDefaultRecoveryStrategy();
-    }
-
-    // Get highest priority strategy that hasn't exceeded max attempts
-    return this.recoveryStrategies
-      .sort((a, b) => a.priority - b.priority)
-      .find(s => !this.retryContext || this.retryContext.attempts < s.maxAttempts) || null;
-  }
-
-  private getBaseUserMessage(): string {
-    switch (this.category) {
-      case ErrorCategory.CONNECTION:
-        return "Failed to connect to Harmony Hub. Please check your network connection and try again.";
-      case ErrorCategory.DISCOVERY:
-        return "Failed to discover Harmony Hubs. Please ensure your hub is powered on and connected to the network.";
-      case ErrorCategory.COMMAND:
-        return "Failed to execute command. Please try again.";
-      case ErrorCategory.STATE:
-        return "Failed to update state. Please try reconnecting to the hub.";
-      case ErrorCategory.DATA:
-        return "Failed to retrieve data from Harmony Hub. Please try again.";
-      case ErrorCategory.HUB_COMMUNICATION:
-        return "Lost communication with the Harmony Hub. Please check your connection.";
-      default:
-        return this.message;
-    }
-  }
-
-  private getRecoveryMessage(): string | null {
-    const strategy = this.getRecoveryStrategy();
-    if (!strategy) return null;
-
-    if (!strategy.automatic) {
-      switch (strategy.actions[0]) {
-        case ErrorRecoveryAction.RESET_CONFIG:
-          return "Try resetting your configuration in the extension settings.";
-        case ErrorRecoveryAction.RESTART:
-          return "Please restart the extension to resolve this issue.";
-        case ErrorRecoveryAction.MANUAL:
-          return "Manual intervention is required. Please check the documentation.";
-        default:
-          return null;
+      details.push(`Cause: ${this.cause.message}`);
+      if (this.cause.stack) {
+        details.push(`Stack: ${this.cause.stack}`);
       }
     }
-    return null;
-  }
 
-  private getDefaultRecoveryStrategy(): ErrorRecoveryStrategy | null {
-    switch (this.category) {
-      case ErrorCategory.CONNECTION:
-        return {
-          actions: [ErrorRecoveryAction.RECONNECT],
-          priority: 1,
-          automatic: true,
-          maxAttempts: 3,
-          delayBetweenAttempts: 1000
-        };
-      case ErrorCategory.DISCOVERY:
-        return {
-          actions: [ErrorRecoveryAction.RETRY, ErrorRecoveryAction.CLEAR_CACHE],
-          priority: 1,
-          automatic: true,
-          maxAttempts: 2,
-          delayBetweenAttempts: 500
-        };
-      case ErrorCategory.COMMAND:
-        return {
-          actions: [ErrorRecoveryAction.RETRY],
-          priority: 1,
-          automatic: true,
-          maxAttempts: 2,
-          delayBetweenAttempts: 500
-        };
-      case ErrorCategory.STATE:
-        return {
-          actions: [ErrorRecoveryAction.RESET_CONFIG],
-          priority: 2,
-          automatic: false,
-          maxAttempts: 1,
-          delayBetweenAttempts: 0
-        };
-      case ErrorCategory.DATA:
-        return {
-          actions: [ErrorRecoveryAction.RETRY, ErrorRecoveryAction.CLEAR_CACHE],
-          priority: 1,
-          automatic: true,
-          maxAttempts: 2,
-          delayBetweenAttempts: 500
-        };
-      case ErrorCategory.HUB_COMMUNICATION:
-        return {
-          actions: [ErrorRecoveryAction.RETRY, ErrorRecoveryAction.RECONNECT],
-          priority: 1,
-          automatic: true,
-          maxAttempts: 3,
-          delayBetweenAttempts: 1000
-        };
-      default:
-        return null;
+    if (this.details) {
+      details.push(`Additional Details: ${JSON.stringify(this.details, null, 2)}`);
     }
+
+    return details.join("\n");
   }
 }
-
-/**
- * Type guard to check if an error is a HarmonyError
- * @param error The error to check
- * @returns True if the error is a HarmonyError
- */
-export function isHarmonyError(error: unknown): error is HarmonyError {
-  return error instanceof HarmonyError;
-}
-
-/**
- * Wraps an error in a HarmonyError if it isn't one already
- * @param error The error to wrap
- * @param category The category to use if wrapping
- * @param message The message to use if wrapping
- * @returns A HarmonyError
- */
-export function wrapError(
-  error: unknown,
-  category: ErrorCategory,
-  message = "An unexpected error occurred"
-): HarmonyError {
-  if (isHarmonyError(error)) {
-    return error;
-  }
-  return new HarmonyError(
-    message,
-    category,
-    error instanceof Error ? error : undefined
-  );
-} 

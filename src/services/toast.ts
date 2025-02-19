@@ -4,6 +4,7 @@
  */
 
 import { showToast, Toast } from "@raycast/api";
+
 import { Logger } from "./logger";
 
 /**
@@ -113,27 +114,19 @@ export class ToastManager {
    * @param message - Optional toast message
    * @param progress - Progress value between 0 and 1
    */
-  static async progress(
-    title: string,
-    message?: string,
-    progress?: number
-  ): Promise<void> {
+  static async progress(title: string, message?: string, progress?: number): Promise<void> {
     if (ToastManager.config.logToasts) {
       Logger.info(
         `Progress: ${title}${message ? ` - ${message}` : ""}${
           progress !== undefined ? ` (${Math.round(progress * 100)}%)` : ""
-        }`
+        }`,
       );
     }
 
     await showToast({
       style: Toast.Style.Animated,
       title,
-      message: message
-        ? progress !== undefined
-          ? `${message} (${Math.round(progress * 100)}%)`
-          : message
-        : undefined,
+      message: message ? (progress !== undefined ? `${message} (${Math.round(progress * 100)}%)` : message) : undefined,
     });
   }
-} 
+}

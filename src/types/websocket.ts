@@ -3,8 +3,7 @@
  * @module
  */
 
-import { HarmonyError } from "./core/errors";
-import { HarmonyActivity, HarmonyDevice } from "./harmony";
+import { HarmonyActivity, HarmonyDevice } from "./core/harmony";
 
 /**
  * WebSocket connection status

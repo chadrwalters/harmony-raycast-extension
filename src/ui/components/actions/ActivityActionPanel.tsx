@@ -1,53 +1,39 @@
-import { Action, ActionPanel, Icon } from "@raycast/api";
-import { HarmonyActivity } from "../../../types/core/harmony";
-import { BaseActionPanel, BaseActionPanelProps } from "./BaseActionPanel";
+import { ActionPanel, Action, Icon } from "@raycast/api";
+import { memo } from "react";
 
-interface ActivityActionPanelProps extends BaseActionPanelProps {
-  activity: HarmonyActivity;
+interface ActivityActionPanelProps {
   isCurrentActivity: boolean;
   onStartActivity: () => void;
   onStopActivity: () => void;
-  onCopyId?: () => void;
+  onRefresh?: () => void;
+  onClearCache?: () => void;
+  onBack?: () => void;
 }
 
-export function ActivityActionPanel({
-  activity,
+function ActivityActionPanelImpl({
   isCurrentActivity,
   onStartActivity,
   onStopActivity,
-  onCopyId,
-  ...baseProps
-}: ActivityActionPanelProps) {
+  onRefresh,
+  onClearCache,
+  onBack,
+}: ActivityActionPanelProps): JSX.Element {
   return (
-    <BaseActionPanel {...baseProps}>
-      <ActionPanel.Section title="Activity Controls">
+    <ActionPanel>
+      <ActionPanel.Section>
         {!isCurrentActivity ? (
-          <Action
-            title="Start Activity"
-            icon={Icon.Play}
-            shortcut={{ modifiers: ["cmd"], key: "return" }}
-            onAction={onStartActivity}
-          />
+          <Action title="Start Activity" icon={Icon.Play} onAction={onStartActivity} />
         ) : (
-          <Action
-            title="Stop Activity"
-            icon={Icon.Stop}
-            shortcut={{ modifiers: ["cmd"], key: "return" }}
-            onAction={onStopActivity}
-          />
+          <Action title="Stop Activity" icon={Icon.Stop} onAction={onStopActivity} />
         )}
       </ActionPanel.Section>
-
-      {onCopyId && (
-        <ActionPanel.Section>
-          <Action
-            title="Copy Activity ID"
-            icon={Icon.Clipboard}
-            shortcut={{ modifiers: ["cmd"], key: "." }}
-            onAction={onCopyId}
-          />
-        </ActionPanel.Section>
-      )}
-    </BaseActionPanel>
+      <ActionPanel.Section>
+        {onRefresh && <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={onRefresh} />}
+        {onClearCache && <Action title="Clear Cache" icon={Icon.Trash} onAction={onClearCache} />}
+        {onBack && <Action title="Back" icon={Icon.ArrowLeft} onAction={onBack} />}
+      </ActionPanel.Section>
+    </ActionPanel>
   );
-} 
+}
+
+export const ActivityActionPanel = memo(ActivityActionPanelImpl);

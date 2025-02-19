@@ -4,6 +4,7 @@
  */
 
 import type { Draft } from "immer";
+
 import type { HarmonyDevice, HarmonyActivity } from "../types/core/harmony";
 
 /**
@@ -25,4 +26,4 @@ export function toMutableActivity(activity: HarmonyActivity): Draft<HarmonyActiv
  */
 export function toMutableArray<T>(array: readonly T[]): Draft<T>[] {
   return array as Draft<T>[];
-} 
+}

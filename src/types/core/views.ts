@@ -3,18 +3,19 @@
  * @module
  */
 
-import type { HarmonyDevice, HarmonyActivity } from './harmony';
-import type { Draft } from 'immer';
+import type { Draft } from "immer";
+
+import type { HarmonyDevice, HarmonyActivity } from "./harmony";
 
 /**
  * Available views in the application
  */
 export enum View {
-  HUBS = 'hubs',
-  DEVICES = 'devices',
-  ACTIVITIES = 'activities',
-  DEVICE_DETAIL = 'device_detail',
-  ACTIVITY_DETAIL = 'activity_detail'
+  HUBS = "hubs",
+  DEVICES = "devices",
+  ACTIVITIES = "activities",
+  DEVICE_DETAIL = "device_detail",
+  ACTIVITY_DETAIL = "activity_detail",
 }
 
 /**
@@ -77,12 +78,12 @@ export interface MutableViewFilters {
  * View transition events
  */
 export type ViewEvent =
-  | { type: 'VIEW_CHANGE'; view: View }
-  | { type: 'SELECT_DEVICE'; device: HarmonyDevice }
-  | { type: 'SELECT_ACTIVITY'; activity: HarmonyActivity }
-  | { type: 'CLEAR_SELECTION' }
-  | { type: 'SET_SEARCH'; query: string }
-  | { type: 'SET_FILTERS'; filters: Partial<ViewFilters> };
+  | { type: "VIEW_CHANGE"; view: View }
+  | { type: "SELECT_DEVICE"; device: HarmonyDevice }
+  | { type: "SELECT_ACTIVITY"; activity: HarmonyActivity }
+  | { type: "CLEAR_SELECTION" }
+  | { type: "SET_SEARCH"; query: string }
+  | { type: "SET_FILTERS"; filters: Partial<ViewFilters> };
 
 /**
  * View action handlers
@@ -100,4 +101,4 @@ export interface ViewActions {
   setSearch: (query: string) => void;
   /** Update filter settings */
   setFilters: (filters: Partial<ViewFilters>) => void;
-} 
+}

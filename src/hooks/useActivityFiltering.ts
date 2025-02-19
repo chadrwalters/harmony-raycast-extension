@@ -1,17 +1,45 @@
 /**
- * Hook for filtering activities with memoization
+ * Hook for filtering activities with memoization.
+ * Provides filtered activities, grouping, and search functionality.
  * @module
  */
 
 import { useMemo } from "react";
-import { useHarmony } from "./useHarmony";
+
 import { useViewStore } from "../stores/view";
 import { HarmonyActivity } from "../types/core/harmony";
 
+import { useHarmony } from "./useHarmony";
+
 /**
- * Hook for filtering and searching activities
+ * Result interface for activity filtering operations.
+ * Contains filtered activities and related metadata.
+ * @interface ActivityFilteringResult
  */
-export function useActivityFiltering() {
+interface ActivityFilteringResult {
+  /** List of activities after applying filters */
+  filteredActivities: HarmonyActivity[];
+  /** List of unique activity types */
+  activityTypes: string[];
+  /** Map of activities grouped by type */
+  activitiesByType: Map<string, HarmonyActivity[]>;
+  /** Map of activity status (running/stopped) */
+  activityStatus: Map<string, boolean>;
+  /** Total number of activities before filtering */
+  totalActivities: number;
+  /** Number of activities after filtering */
+  filteredCount: number;
+  /** Currently running activity */
+  currentActivity: HarmonyActivity | null;
+}
+
+/**
+ * Hook for filtering and searching activities.
+ * Provides memoized filtering, grouping, and status tracking.
+ * Integrates with view store for search and filter state.
+ * @returns ActivityFilteringResult containing filtered activities and metadata
+ */
+export function useActivityFiltering(): ActivityFilteringResult {
   const { activities, currentActivity } = useHarmony();
   const searchQuery = useViewStore((state) => state.searchQuery);
   const filters = useViewStore((state) => state.filters);
@@ -29,9 +57,7 @@ export function useActivityFiltering() {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
-        (activity) =>
-          activity.name.toLowerCase().includes(query) ||
-          activity.type.toLowerCase().includes(query)
+        (activity) => activity.name.toLowerCase().includes(query) || activity.type.toLowerCase().includes(query),
       );
     }
 
@@ -47,7 +73,7 @@ export function useActivityFiltering() {
   // Memoize activities by type
   const activitiesByType = useMemo(() => {
     const byType = new Map<string, HarmonyActivity[]>();
-    
+
     filteredActivities.forEach((activity) => {
       const activities = byType.get(activity.type) || [];
       activities.push(activity);
@@ -71,7 +97,7 @@ export function useActivityFiltering() {
   // Memoize activity status
   const activityStatus = useMemo(() => {
     const status = new Map<string, boolean>();
-    
+
     activities.forEach((activity) => {
       status.set(activity.id, activity.isCurrent);
     });
@@ -88,4 +114,4 @@ export function useActivityFiltering() {
     filteredCount: filteredActivities.length,
     currentActivity,
   };
-} 
+}

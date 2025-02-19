@@ -15,7 +15,7 @@ export enum LogLevel {
   /** Warning level for potentially problematic situations */
   WARN = 2,
   /** Error level for error conditions */
-  ERROR = 3
+  ERROR = 3,
 }
 
 /**
@@ -30,7 +30,7 @@ export enum ErrorSeverity {
   /** Serious issues that affect core functionality */
   ERROR = "error",
   /** Critical issues that prevent the extension from working */
-  CRITICAL = "critical"
+  CRITICAL = "critical",
 }
 
 /**
@@ -131,4 +131,4 @@ export type LogFilter = (entry: LogEntry) => boolean;
  * Type for log entry formatter functions
  * @type {LogFormatter}
  */
-export type LogFormatter = (entry: LogEntry) => string; 
+export type LogFormatter = (entry: LogEntry) => string;

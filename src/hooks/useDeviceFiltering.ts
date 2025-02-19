@@ -1,17 +1,41 @@
 /**
- * Hook for filtering devices with memoization
+ * Hook for filtering devices with memoization.
+ * Provides filtered devices, grouping, and search functionality.
  * @module
  */
 
 import { useMemo } from "react";
-import { useHarmony } from "./useHarmony";
+
 import { useViewStore } from "../stores/view";
 import { HarmonyDevice } from "../types/core/harmony";
 
+import { useHarmony } from "./useHarmony";
+
 /**
- * Hook for filtering and searching devices
+ * Result interface for device filtering operations.
+ * Contains filtered devices and related metadata.
+ * @interface DeviceFilteringResult
  */
-export function useDeviceFiltering() {
+interface DeviceFilteringResult {
+  /** List of devices after applying filters */
+  filteredDevices: HarmonyDevice[];
+  /** List of unique device types */
+  deviceTypes: string[];
+  /** Map of devices grouped by type */
+  devicesByType: Map<string, HarmonyDevice[]>;
+  /** Total number of devices before filtering */
+  totalDevices: number;
+  /** Number of devices after filtering */
+  filteredCount: number;
+}
+
+/**
+ * Hook for filtering and searching devices.
+ * Provides memoized filtering, grouping, and command search.
+ * Integrates with view store for search and filter state.
+ * @returns DeviceFilteringResult containing filtered devices and metadata
+ */
+export function useDeviceFiltering(): DeviceFilteringResult {
   const { devices } = useHarmony();
   const searchQuery = useViewStore((state) => state.searchQuery);
   const filters = useViewStore((state) => state.filters);
@@ -32,9 +56,7 @@ export function useDeviceFiltering() {
         (device) =>
           device.name.toLowerCase().includes(query) ||
           device.type.toLowerCase().includes(query) ||
-          device.commands.some((cmd) =>
-            cmd.label.toLowerCase().includes(query)
-          )
+          device.commands.some((cmd) => cmd.label.toLowerCase().includes(query)),
       );
     }
 
@@ -50,7 +72,7 @@ export function useDeviceFiltering() {
   // Memoize devices by type
   const devicesByType = useMemo(() => {
     const byType = new Map<string, HarmonyDevice[]>();
-    
+
     filteredDevices.forEach((device) => {
       const devices = byType.get(device.type) || [];
       devices.push(device);
@@ -72,4 +94,4 @@ export function useDeviceFiltering() {
     totalDevices: devices.length,
     filteredCount: filteredDevices.length,
   };
-} 
+}

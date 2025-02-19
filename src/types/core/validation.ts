@@ -3,15 +3,9 @@
  * @module
  */
 
-import { HarmonyError } from "./errors";
+import { HarmonyError, ErrorSeverity } from "./errors";
 import { ErrorCategory } from "./harmony";
-import type {
-  HarmonyHub,
-  HarmonyDevice,
-  HarmonyCommand,
-  HarmonyActivity,
-  LoadingState,
-} from "./harmony";
+import type { HarmonyHub, HarmonyDevice, HarmonyCommand, HarmonyActivity, LoadingState } from "./harmony";
 
 /**
  * Validates a string field
@@ -21,10 +15,7 @@ import type {
  */
 function validateString(value: unknown, fieldName: string): void {
   if (typeof value !== "string" || value.trim().length === 0) {
-    throw new HarmonyError(
-      `Invalid ${fieldName}: must be a non-empty string`,
-      ErrorCategory.DATA
-    );
+    throw new HarmonyError(`Invalid ${fieldName}: must be a non-empty string`, ErrorCategory.DATA);
   }
 }
 
@@ -36,10 +27,7 @@ function validateString(value: unknown, fieldName: string): void {
  */
 function validateNumber(value: unknown, fieldName: string): void {
   if (typeof value !== "number" || isNaN(value)) {
-    throw new HarmonyError(
-      `Invalid ${fieldName}: must be a number`,
-      ErrorCategory.DATA
-    );
+    throw new HarmonyError(`Invalid ${fieldName}: must be a number`, ErrorCategory.DATA);
   }
 }
 
@@ -50,26 +38,15 @@ function validateNumber(value: unknown, fieldName: string): void {
  * @param itemValidator Function to validate each item in the array
  * @throws {HarmonyError} If the value is invalid
  */
-function validateArray<T>(
-  value: unknown,
-  fieldName: string,
-  itemValidator: (item: unknown) => void
-): void {
+function validateArray(value: unknown, fieldName: string, itemValidator: (item: unknown) => void): void {
   if (!Array.isArray(value)) {
-    throw new HarmonyError(
-      `Invalid ${fieldName}: must be an array`,
-      ErrorCategory.DATA
-    );
+    throw new HarmonyError(`Invalid ${fieldName}: must be an array`, ErrorCategory.DATA);
   }
   value.forEach((item, index) => {
     try {
       itemValidator(item);
     } catch (error) {
-      throw new HarmonyError(
-        `Invalid item at index ${index} in ${fieldName}`,
-        ErrorCategory.DATA,
-        error instanceof Error ? error : undefined
-      );
+      throw new HarmonyError(`Invalid item at index ${index} in ${fieldName}`, ErrorCategory.DATA);
     }
   });
 }
@@ -96,10 +73,7 @@ export function validateHub(hub: unknown): asserts hub is HarmonyHub {
  */
 export function validateCommand(command: unknown): asserts command is HarmonyCommand {
   if (!command || typeof command !== "object") {
-    throw new HarmonyError(
-      "Invalid command: must be an object",
-      ErrorCategory.DATA
-    );
+    throw new HarmonyError("Invalid command: must be an object", ErrorCategory.DATA);
   }
 
   validateString((command as HarmonyCommand).id, "command.id");
@@ -115,10 +89,7 @@ export function validateCommand(command: unknown): asserts command is HarmonyCom
  */
 export function validateDevice(device: unknown): asserts device is HarmonyDevice {
   if (!device || typeof device !== "object") {
-    throw new HarmonyError(
-      "Invalid device: must be an object",
-      ErrorCategory.DATA
-    );
+    throw new HarmonyError("Invalid device: must be an object", ErrorCategory.DATA);
   }
 
   validateString((device as HarmonyDevice).id, "device.id");
@@ -134,21 +105,15 @@ export function validateDevice(device: unknown): asserts device is HarmonyDevice
  */
 export function validateActivity(activity: unknown): asserts activity is HarmonyActivity {
   if (!activity || typeof activity !== "object") {
-    throw new HarmonyError(
-      "Invalid activity: must be an object",
-      ErrorCategory.DATA
-    );
+    throw new HarmonyError("Invalid activity: must be an object", ErrorCategory.DATA);
   }
 
   validateString((activity as HarmonyActivity).id, "activity.id");
   validateString((activity as HarmonyActivity).name, "activity.name");
   validateString((activity as HarmonyActivity).type, "activity.type");
-  
+
   if (typeof (activity as HarmonyActivity).isCurrent !== "boolean") {
-    throw new HarmonyError(
-      "Invalid activity.isCurrent: must be a boolean",
-      ErrorCategory.DATA
-    );
+    throw new HarmonyError("Invalid activity.isCurrent: must be a boolean", ErrorCategory.DATA);
   }
 }
 
@@ -159,10 +124,7 @@ export function validateActivity(activity: unknown): asserts activity is Harmony
  */
 export function validateLoadingState(state: unknown): asserts state is LoadingState {
   if (!state || typeof state !== "object") {
-    throw new HarmonyError(
-      "Invalid loading state: must be an object",
-      ErrorCategory.DATA
-    );
+    throw new HarmonyError("Invalid loading state: must be an object", ErrorCategory.DATA);
   }
 
   validateString((state as LoadingState).stage, "loadingState.stage");
@@ -171,9 +133,24 @@ export function validateLoadingState(state: unknown): asserts state is LoadingSt
 
   const progress = (state as LoadingState).progress;
   if (progress < 0 || progress > 1) {
-    throw new HarmonyError(
-      "Invalid loadingState.progress: must be between 0 and 1",
-      ErrorCategory.DATA
-    );
+    throw new HarmonyError("Invalid loadingState.progress: must be between 0 and 1", ErrorCategory.DATA);
   }
-} 
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  errors: ValidationError[];
+}
+
+export interface ValidationError {
+  message: string;
+  severity: ErrorSeverity;
+}
+
+export interface ValidationContext {
+  errors: ValidationError[];
+}
+
+export interface Validator {
+  validate(context: ValidationContext): void;
+}

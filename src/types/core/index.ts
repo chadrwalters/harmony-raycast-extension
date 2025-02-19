@@ -30,20 +30,10 @@ export {
 } from "./harmony";
 
 // Re-export error types
-export {
-  HarmonyError,
-  isHarmonyError,
-  wrapError,
-} from "./errors";
+export { HarmonyError, isHarmonyError, wrapError } from "./errors";
 
 // Re-export validation functions
-export {
-  validateHub,
-  validateDevice,
-  validateCommand,
-  validateActivity,
-  validateLoadingState,
-} from "./validation";
+export { validateHub, validateDevice, validateCommand, validateActivity, validateLoadingState } from "./validation";
 
 // Re-export command types
 export type {
@@ -55,24 +45,12 @@ export type {
   RetryContext,
 } from "./command";
 
-export {
-  CommandStatus,
-  ErrorRecoveryAction,
-} from "./command";
+export { CommandStatus, ErrorRecoveryAction } from "./command";
 
 // Re-export logging types
-export type {
-  LoggerOptions,
-  LogEntry,
-  ILogger,
-  LogFilter,
-  LogFormatter,
-} from "./logging";
+export type { LoggerOptions, LogEntry, ILogger, LogFilter, LogFormatter } from "./logging";
 
-export {
-  LogLevel,
-  ErrorSeverity,
-} from "./logging";
+export { LogLevel, ErrorSeverity } from "./logging";
 
 // Re-export WebSocket types
 export type {
@@ -88,10 +66,7 @@ export type {
   QueuedMessage,
 } from "./websocket";
 
-export {
-  WebSocketConnectionStatus,
-  WebSocketMessageType,
-} from "./websocket";
+export { WebSocketConnectionStatus, WebSocketMessageType } from "./websocket";
 
 // Re-export state types
 export type {
@@ -110,6 +85,4 @@ export type {
   HarmonyState,
 } from "./state";
 
-export {
-  MachineState,
-} from "./state"; 
+export { MachineState } from "./state";

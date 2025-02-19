@@ -19,7 +19,7 @@ export enum CommandStatus {
   /** Command has failed */
   FAILED = "FAILED",
   /** Command was cancelled */
-  CANCELLED = "CANCELLED"
+  CANCELLED = "CANCELLED",
 }
 
 /**
@@ -97,7 +97,7 @@ export enum ErrorRecoveryAction {
   /** Restart extension */
   RESTART = "restart",
   /** Manual user intervention required */
-  MANUAL = "manual"
+  MANUAL = "manual",
 }
 
 /**
@@ -157,4 +157,4 @@ export interface RetryContext {
   readonly totalDuration: number;
   /** Success rate of previous attempts */
   readonly successRate?: number;
-} 
+}

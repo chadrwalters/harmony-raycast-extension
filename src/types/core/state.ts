@@ -3,8 +3,8 @@
  * @module
  */
 
-import type { HarmonyHub, HarmonyDevice, HarmonyActivity } from "./harmony";
 import type { HarmonyError } from "./errors";
+import type { HarmonyHub, HarmonyDevice, HarmonyActivity } from "./harmony";
 import type { LoadingState } from "./harmony";
 
 /**
@@ -21,7 +21,7 @@ export enum MachineState {
   /** Connected to a hub */
   CONNECTED = "CONNECTED",
   /** Error state */
-  ERROR = "ERROR"
+  ERROR = "ERROR",
 }
 
 /**
@@ -178,4 +178,4 @@ export interface HarmonyState {
   readonly error: Error | null;
   /** Current loading state */
   readonly loadingState: LoadingState;
-} 
+}

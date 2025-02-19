@@ -5,10 +5,11 @@
 
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import { ErrorHandler } from "../services/error-handler";
-import { ToastManager } from "../services/toast";
+
+import { ErrorHandler } from "../services/errorHandler";
 import { LocalStorage } from "../services/localStorage";
 import { Logger } from "../services/logger";
+import { ToastManager } from "../services/toast";
 import {
   HarmonyHub,
   HarmonyDevice,
@@ -35,16 +36,16 @@ interface HarmonyActions {
   discoverHubs: () => Promise<void>;
   selectHub: (hub: HarmonyHub) => Promise<void>;
   disconnectHub: () => Promise<void>;
-  
+
   // Device Management
   loadDevices: () => Promise<void>;
   executeCommand: (command: HarmonyCommand) => Promise<void>;
-  
+
   // Activity Management
   loadActivities: () => Promise<void>;
   startActivity: (activity: HarmonyActivity) => Promise<void>;
   stopActivity: (activity: HarmonyActivity) => Promise<void>;
-  
+
   // State Management
   setError: (error: HarmonyError | null) => void;
   clearError: () => void;
@@ -63,7 +64,7 @@ type HarmonyStore = MutableHarmonyState & HarmonyActions;
 export const useHarmonyStore = create<HarmonyStore>()(
   immer((set, get) => {
     // Load persisted state
-    const loadPersistedState = async () => {
+    const loadPersistedState = async (): Promise<void> => {
       try {
         const persistedJSON = await LocalStorage.getItem("harmony-hub-state");
         if (persistedJSON) {
@@ -84,16 +85,13 @@ export const useHarmonyStore = create<HarmonyStore>()(
     };
 
     // Save state changes
-    const saveState = async (state: HarmonyStore) => {
+    const saveState = async (state: HarmonyStore): Promise<void> => {
       try {
         const persistedState = {
           selectedHub: state.selectedHub,
           hubs: state.hubs,
         };
-        await LocalStorage.setItem(
-          "harmony-hub-state",
-          JSON.stringify({ state: persistedState, version: 1 })
-        );
+        await LocalStorage.setItem("harmony-hub-state", JSON.stringify({ state: persistedState, version: 1 }));
         Logger.info("Saved hub state");
       } catch (err) {
         Logger.error("Failed to save hub state", err);
@@ -144,9 +142,17 @@ export const useHarmonyStore = create<HarmonyStore>()(
 
           ToastManager.success(`Found ${hubs.length} Harmony Hub(s)`);
         } catch (error) {
-          ErrorHandler.handle(error, "Failed to discover hubs", ErrorCategory.DISCOVERY);
+          const harmonyError =
+            error instanceof HarmonyError
+              ? error
+              : new HarmonyError(
+                  "Failed to discover hubs",
+                  ErrorCategory.DISCOVERY,
+                  error instanceof Error ? error : undefined,
+                );
+          ErrorHandler.handle(harmonyError, "Hub discovery failed");
           set((state) => {
-            state.error = error as HarmonyError;
+            state.error = harmonyError;
             state.loadingState = toMutableLoadingState({
               stage: HarmonyStage.ERROR,
               progress: 1,
@@ -168,7 +174,7 @@ export const useHarmonyStore = create<HarmonyStore>()(
           });
 
           // TODO: Implement hub connection
-          
+
           set((state) => {
             state.selectedHub = toMutableHub(hub);
             state.loadingState = toMutableLoadingState({
@@ -185,9 +191,17 @@ export const useHarmonyStore = create<HarmonyStore>()(
 
           ToastManager.success(`Connected to ${hub.name}`);
         } catch (error) {
-          ErrorHandler.handle(error, "Failed to connect to hub", ErrorCategory.CONNECTION);
+          const harmonyError =
+            error instanceof HarmonyError
+              ? error
+              : new HarmonyError(
+                  "Failed to connect to hub",
+                  ErrorCategory.CONNECTION,
+                  error instanceof Error ? error : undefined,
+                );
+          ErrorHandler.handle(harmonyError, "Hub connection failed");
           set((state) => {
-            state.error = error as HarmonyError;
+            state.error = harmonyError;
             state.loadingState = toMutableLoadingState({
               stage: HarmonyStage.ERROR,
               progress: 1,
@@ -227,7 +241,18 @@ export const useHarmonyStore = create<HarmonyStore>()(
 
           ToastManager.success("Disconnected from Harmony Hub");
         } catch (error) {
-          ErrorHandler.handle(error, "Failed to disconnect", ErrorCategory.CONNECTION);
+          const harmonyError =
+            error instanceof HarmonyError
+              ? error
+              : new HarmonyError(
+                  "Failed to disconnect",
+                  ErrorCategory.CONNECTION,
+                  error instanceof Error ? error : undefined,
+                );
+          ErrorHandler.handle(harmonyError, "Hub disconnection failed");
+          set((state) => {
+            state.error = harmonyError;
+          });
         }
       },
 
@@ -259,9 +284,17 @@ export const useHarmonyStore = create<HarmonyStore>()(
             });
           });
         } catch (error) {
-          ErrorHandler.handle(error, "Failed to load devices", ErrorCategory.DATA);
+          const harmonyError =
+            error instanceof HarmonyError
+              ? error
+              : new HarmonyError(
+                  "Failed to load devices",
+                  ErrorCategory.DATA,
+                  error instanceof Error ? error : undefined,
+                );
+          ErrorHandler.handle(harmonyError, "Device loading failed");
           set((state) => {
-            state.error = error as HarmonyError;
+            state.error = harmonyError;
           });
         }
       },
@@ -291,9 +324,17 @@ export const useHarmonyStore = create<HarmonyStore>()(
             });
           });
         } catch (error) {
-          ErrorHandler.handle(error, "Failed to execute command", ErrorCategory.COMMAND);
+          const harmonyError =
+            error instanceof HarmonyError
+              ? error
+              : new HarmonyError(
+                  "Failed to execute command",
+                  ErrorCategory.COMMAND,
+                  error instanceof Error ? error : undefined,
+                );
+          ErrorHandler.handle(harmonyError, "Command execution failed");
           set((state) => {
-            state.error = error as HarmonyError;
+            state.error = harmonyError;
           });
         }
       },
@@ -326,9 +367,17 @@ export const useHarmonyStore = create<HarmonyStore>()(
             });
           });
         } catch (error) {
-          ErrorHandler.handle(error, "Failed to load activities", ErrorCategory.DATA);
+          const harmonyError =
+            error instanceof HarmonyError
+              ? error
+              : new HarmonyError(
+                  "Failed to load activities",
+                  ErrorCategory.DATA,
+                  error instanceof Error ? error : undefined,
+                );
+          ErrorHandler.handle(harmonyError, "Activity loading failed");
           set((state) => {
-            state.error = error as HarmonyError;
+            state.error = harmonyError;
           });
         }
       },
@@ -361,9 +410,17 @@ export const useHarmonyStore = create<HarmonyStore>()(
 
           ToastManager.success(`Started activity: ${activity.name}`);
         } catch (error) {
-          ErrorHandler.handle(error, "Failed to start activity", ErrorCategory.COMMAND);
+          const harmonyError =
+            error instanceof HarmonyError
+              ? error
+              : new HarmonyError(
+                  "Failed to start activity",
+                  ErrorCategory.COMMAND,
+                  error instanceof Error ? error : undefined,
+                );
+          ErrorHandler.handle(harmonyError, "Activity start failed");
           set((state) => {
-            state.error = error as HarmonyError;
+            state.error = harmonyError;
           });
         }
       },
@@ -399,9 +456,17 @@ export const useHarmonyStore = create<HarmonyStore>()(
 
           ToastManager.success(`Stopped activity: ${activity.name}`);
         } catch (error) {
-          ErrorHandler.handle(error, "Failed to stop activity", ErrorCategory.COMMAND);
+          const harmonyError =
+            error instanceof HarmonyError
+              ? error
+              : new HarmonyError(
+                  "Failed to stop activity",
+                  ErrorCategory.COMMAND,
+                  error instanceof Error ? error : undefined,
+                );
+          ErrorHandler.handle(harmonyError, "Activity stop failed");
           set((state) => {
-            state.error = error as HarmonyError;
+            state.error = harmonyError;
           });
         }
       },
@@ -442,18 +507,22 @@ export const useHarmonyStore = create<HarmonyStore>()(
         saveState(get());
       },
     };
-  })
+  }),
 );
 
 // Export selectors for common state derivations
-export const selectHubs = (state: HarmonyStore) => state.hubs;
-export const selectSelectedHub = (state: HarmonyStore) => state.selectedHub;
-export const selectDevices = (state: HarmonyStore) => state.devices;
-export const selectActivities = (state: HarmonyStore) => state.activities;
-export const selectCurrentActivity = (state: HarmonyStore) => state.currentActivity;
-export const selectError = (state: HarmonyStore) => state.error;
-export const selectLoadingState = (state: HarmonyStore) => state.loadingState;
-export const selectIsLoading = (state: HarmonyStore) =>
+export const selectHubs = (state: HarmonyStore): readonly HarmonyHub[] => state.hubs;
+export const selectSelectedHub = (state: HarmonyStore): HarmonyHub | null => state.selectedHub;
+export const selectDevices = (state: HarmonyStore): readonly HarmonyDevice[] => state.devices;
+export const selectActivities = (state: HarmonyStore): readonly HarmonyActivity[] => state.activities;
+export const selectCurrentActivity = (state: HarmonyStore): HarmonyActivity | null => state.currentActivity;
+export const selectError = (state: HarmonyStore): HarmonyError | null => state.error as HarmonyError | null;
+export const selectLoadingState = (state: HarmonyStore): LoadingState => ({
+  stage: state.loadingState.stage as HarmonyStage,
+  progress: state.loadingState.progress,
+  message: state.loadingState.message,
+});
+export const selectIsLoading = (state: HarmonyStore): boolean =>
   state.loadingState.stage !== HarmonyStage.INITIAL &&
   state.loadingState.stage !== HarmonyStage.CONNECTED &&
-  state.loadingState.stage !== HarmonyStage.ERROR; 
+  state.loadingState.stage !== HarmonyStage.ERROR;

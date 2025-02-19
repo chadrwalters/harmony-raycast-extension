@@ -1,13 +1,47 @@
-import React, { useEffect, useRef } from "react";
+import { List, Icon, Action, ActionPanel } from "@raycast/api";
+import React, { useEffect, useRef, useCallback } from "react";
+import { memo } from "react";
+
 import { useHarmony } from "../../../hooks/useHarmony";
+import { Logger } from "../../../services/logger";
 import { useViewStore } from "../../../stores/view";
+import { HarmonyCommand as HarmonyCommandType, HarmonyDevice, HarmonyActivity } from "../../../types/core/harmony";
 import { View } from "../../../types/core/views";
-import { HarmonyError } from "../../../types/core/errors";
-import { HubsView } from "./HubsView";
-import { DevicesView } from "./DevicesView";
+
 import { ActivitiesView } from "./ActivitiesView";
 import { CommandsView } from "./CommandsView";
-import { Logger } from "../../../services/logger";
+import { DevicesView } from "./DevicesView";
+import { HubsView } from "./HubsView";
+
+interface CommandItemProps {
+  command: HarmonyCommandType;
+  onExecute: () => void;
+  onBack?: () => void;
+}
+
+function CommandItemImpl({ command, onExecute, onBack }: CommandItemProps): JSX.Element {
+  return (
+    <List.Item
+      title={command.label}
+      subtitle={command.name}
+      icon={Icon.Terminal}
+      actions={
+        <ActionPanel>
+          <ActionPanel.Section>
+            <Action title="Execute Command" icon={Icon.Terminal} onAction={onExecute} />
+          </ActionPanel.Section>
+          {onBack && (
+            <ActionPanel.Section>
+              <Action title="Back" icon={Icon.ArrowLeft} onAction={onBack} />
+            </ActionPanel.Section>
+          )}
+        </ActionPanel>
+      }
+    />
+  );
+}
+
+export const CommandItem = memo(CommandItemImpl);
 
 export function HarmonyCommand(): React.ReactElement {
   const {
@@ -19,12 +53,9 @@ export function HarmonyCommand(): React.ReactElement {
     loadingState,
     error,
     connect,
-    disconnect,
     refresh,
     executeCommand,
-    clearCache,
     startActivity,
-    stopActivity,
   } = useHarmony();
 
   const currentView = useViewStore((state) => state.currentView);
@@ -50,7 +81,7 @@ export function HarmonyCommand(): React.ReactElement {
       deviceCount: devices.length,
       activityCount: activities.length,
       loadingState: loadingState?.stage,
-      hasError: !!error
+      hasError: !!error,
     });
   }, [currentView, hubs, selectedHub, devices, activities, loadingState, error]);
 
@@ -78,66 +109,45 @@ export function HarmonyCommand(): React.ReactElement {
     }
   }, [currentView, selectedDevice, viewStore]);
 
+  // Handle device selection
+  const handleDeviceSelect = useCallback(
+    (device: HarmonyDevice) => {
+      Logger.debug("Device selected", { device: device.name });
+      viewStore.selectDevice(device);
+    },
+    [viewStore],
+  );
+
   // Handle view rendering based on current view state
   Logger.debug("Rendering view", { currentView });
-  
+
   switch (currentView) {
     case View.HUBS:
       Logger.info("Rendering HubsView", {
         hubCount: hubs.length,
         selectedHub: selectedHub?.name,
-        loadingState: loadingState?.stage
+        loadingState: loadingState?.stage,
       });
-      return (
-        <HubsView
-          hubs={hubs}
-          selectedHub={selectedHub}
-          loadingState={loadingState}
-          error={error}
-          onSelectHub={connect}
-          onRefresh={refresh}
-          onClearCache={clearCache}
-        />
-      );
+      return <HubsView onHubSelect={connect} />;
 
     case View.DEVICES:
       Logger.info("Rendering DevicesView", {
         deviceCount: devices.length,
-        loadingState: loadingState?.stage
+        loadingState: loadingState?.stage,
       });
-      return (
-        <DevicesView
-          devices={devices}
-          loadingState={loadingState}
-          error={error}
-          onExecuteCommand={executeCommand}
-          onRefresh={refresh}
-          onClearCache={clearCache}
-          onReconnect={disconnect}
-        />
-      );
+      return <DevicesView onDeviceSelect={handleDeviceSelect} />;
 
     case View.DEVICE_DETAIL:
       if (!selectedDevice) {
-        return (
-          <DevicesView
-            devices={devices}
-            loadingState={loadingState}
-            error={error}
-            onExecuteCommand={executeCommand}
-            onRefresh={refresh}
-            onClearCache={clearCache}
-            onReconnect={disconnect}
-          />
-        );
+        return <DevicesView onDeviceSelect={handleDeviceSelect} />;
       }
       Logger.info("Rendering CommandsView", {
         device: selectedDevice.name,
-        commandCount: selectedDevice.commands.length
+        commandCount: selectedDevice.commands.length,
       });
       return (
         <CommandsView
-          device={selectedDevice}
+          commands={selectedDevice.commands}
           onExecuteCommand={executeCommand}
           onBack={() => viewStore.changeView(View.DEVICES)}
         />
@@ -147,38 +157,16 @@ export function HarmonyCommand(): React.ReactElement {
       Logger.info("Rendering ActivitiesView", {
         activityCount: activities.length,
         currentActivity: currentActivity?.name,
-        loadingState: loadingState?.stage
+        loadingState: loadingState?.stage,
       });
-      return (
-        <ActivitiesView
-          activities={activities}
-          currentActivity={currentActivity}
-          loadingState={loadingState}
-          error={error}
-          onStartActivity={(activity) => startActivity(activity.id)}
-          onStopActivity={stopActivity}
-          onRefresh={refresh}
-          onClearCache={clearCache}
-          onReconnect={disconnect}
-        />
-      );
+      return <ActivitiesView onActivitySelect={(activity: HarmonyActivity) => startActivity(activity.id)} />;
 
     default:
       Logger.info("Rendering default HubsView", {
         hubCount: hubs.length,
         selectedHub: selectedHub?.name,
-        loadingState: loadingState?.stage
+        loadingState: loadingState?.stage,
       });
-      return (
-        <HubsView
-          hubs={hubs}
-          selectedHub={selectedHub}
-          loadingState={loadingState}
-          error={error}
-          onSelectHub={connect}
-          onRefresh={refresh}
-          onClearCache={clearCache}
-        />
-      );
+      return <HubsView onHubSelect={connect} />;
   }
 }
