@@ -265,13 +265,12 @@ export class HarmonyManager {
   /**
    * Performs network discovery of Harmony Hubs.
    * Uses the Harmony discovery protocol to find hubs on the local network.
-   * @param onProgress - Optional callback for progress updates
    * @returns Promise resolving to list of discovered hubs
    * @throws {HarmonyError} If discovery fails
    * @private
    */
-  private async discoverHubs(onProgress?: (progress: number, message: string) => void): Promise<HarmonyHub[]> {
-    // ... existing code ...
+  private async discoverHubs(): Promise<HarmonyHub[]> {
+    return [];
   }
 
   /**

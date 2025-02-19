@@ -106,7 +106,11 @@ export class ErrorHandler {
     }
 
     const message = error instanceof Error ? error.message : String(error);
-    return new HarmonyError(message, category || ErrorHandler.config.defaultCategory, error instanceof Error ? error : undefined);
+    return new HarmonyError(
+      message,
+      category || ErrorHandler.config.defaultCategory,
+      error instanceof Error ? error : undefined,
+    );
   }
 
   /**
