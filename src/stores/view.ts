@@ -1,0 +1,170 @@
+/**
+ * View state management store
+ * @module
+ */
+
+import { create } from "zustand";
+import { immer } from "zustand/middleware/immer";
+import { View, ViewState, ViewFilters, ViewActions, MutableViewState } from "../types/core/views";
+import { HarmonyDevice, HarmonyActivity } from "../types/core/harmony";
+import { getPreferenceValues } from "@raycast/api";
+import { Preferences } from "../types/preferences";
+import { toMutableDevice, toMutableActivity } from "../utils/state";
+import { LocalStorage } from "../services/localStorage";
+import { Logger } from "../services/logger";
+
+/**
+ * Combined store type with state and actions
+ */
+type ViewStore = MutableViewState & ViewActions;
+
+/**
+ * Create the view store with Zustand and Immer
+ */
+export const useViewStore = create<ViewStore>()(
+  immer((set, get) => {
+    const preferences = getPreferenceValues<Preferences>();
+    Logger.debug("Initializing view store with preferences", { defaultView: preferences.defaultView });
+
+    // Load persisted state
+    const loadPersistedState = async () => {
+      try {
+        const persistedJSON = await LocalStorage.getItem("harmony-view-state");
+        if (persistedJSON) {
+          const { state } = JSON.parse(persistedJSON);
+          set((draft) => {
+            // Don't override the default view from preferences
+            draft.filters = state.filters;
+          });
+          Logger.info("Loaded persisted view state");
+        }
+      } catch (err) {
+        Logger.error("Failed to load persisted view state", err);
+      }
+    };
+
+    // Save state changes
+    const saveState = async (state: ViewStore) => {
+      try {
+        const persistedState = {
+          filters: state.filters,
+        };
+        await LocalStorage.setItem(
+          "harmony-view-state",
+          JSON.stringify({ state: persistedState, version: 1 })
+        );
+        Logger.info("Saved view state");
+      } catch (err) {
+        Logger.error("Failed to save view state", err);
+      }
+    };
+
+    // Initialize state
+    loadPersistedState();
+
+    const initialView = preferences.defaultView === "activities" ? View.ACTIVITIES : View.DEVICES;
+    Logger.debug("Setting initial view", { initialView });
+
+    return {
+      // Initial State
+      currentView: initialView,
+      selectedDevice: null,
+      selectedActivity: null,
+      searchQuery: "",
+      filters: {
+        deviceType: undefined,
+        activityType: undefined,
+        showFavorites: false,
+      },
+
+      // View Actions
+      changeView: (view: View) => {
+        set((state: MutableViewState) => {
+          // If transitioning from hubs view after connection, use the preferred view
+          if (state.currentView === View.HUBS && view === View.DEVICES) {
+            const preferences = getPreferenceValues<Preferences>();
+            state.currentView = preferences.defaultView === "activities" ? View.ACTIVITIES : View.DEVICES;
+          } else {
+            state.currentView = view;
+          }
+
+          // Clear selection when changing views
+          if (view !== View.DEVICE_DETAIL) {
+            state.selectedDevice = null;
+          }
+          if (view !== View.ACTIVITY_DETAIL) {
+            state.selectedActivity = null;
+          }
+          // Clear search and filters
+          state.searchQuery = "";
+          state.filters = {
+            deviceType: undefined,
+            activityType: undefined,
+            showFavorites: false,
+          };
+        });
+        saveState(get());
+      },
+
+      selectDevice: (device: HarmonyDevice) => {
+        Logger.debug("Selecting device in store", { device });
+        set((state: MutableViewState) => {
+          state.selectedDevice = toMutableDevice(device);
+          state.currentView = View.DEVICE_DETAIL;
+        });
+        saveState(get());
+      },
+
+      selectActivity: (activity: HarmonyActivity) => {
+        set((state: MutableViewState) => {
+          state.selectedActivity = toMutableActivity(activity);
+          state.currentView = View.ACTIVITY_DETAIL;
+        });
+        saveState(get());
+      },
+
+      clearSelection: () => {
+        set((state: MutableViewState) => {
+          if (state.currentView === View.DEVICE_DETAIL) {
+            state.currentView = View.DEVICES;
+            state.selectedDevice = null;
+          } else if (state.currentView === View.ACTIVITY_DETAIL) {
+            state.currentView = View.ACTIVITIES;
+            state.selectedActivity = null;
+          }
+        });
+        saveState(get());
+      },
+
+      setSearch: (query: string) => {
+        set((state: MutableViewState) => {
+          state.searchQuery = query;
+        });
+      },
+
+      setFilters: (filters: Partial<ViewFilters>) => {
+        set((state: MutableViewState) => {
+          state.filters = {
+            ...state.filters,
+            ...filters,
+          };
+        });
+        saveState(get());
+      },
+    };
+  })
+);
+
+// Selectors
+export const selectCurrentView = (state: ViewStore) => state.currentView;
+export const selectSelectedDevice = (state: ViewStore) => state.selectedDevice;
+export const selectSelectedActivity = (state: ViewStore) => state.selectedActivity;
+export const selectSearchQuery = (state: ViewStore) => state.searchQuery;
+export const selectFilters = (state: ViewStore) => state.filters;
+
+// Derived selectors
+export const selectIsDetailView = (state: ViewStore) =>
+  state.currentView === View.DEVICE_DETAIL || state.currentView === View.ACTIVITY_DETAIL;
+
+export const selectCanGoBack = (state: ViewStore) =>
+  state.currentView === View.DEVICE_DETAIL || state.currentView === View.ACTIVITY_DETAIL; 

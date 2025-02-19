@@ -1,8 +1,9 @@
 import { Explorer } from "@harmonyhub/discover";
 import { HarmonyHub } from "../../types/harmony";
 import { Logger } from "../logger";
-import { LocalStorage } from "@raycast/api";
-import { HarmonyError, ErrorCategory } from "../../types/errors";
+import { LocalStorage, showToast, Toast } from "@raycast/api";
+import { HarmonyError, ErrorCategory } from "../../types/core/errors";
+import { HarmonyClient } from "../../services/harmony/harmonyClient";
 
 // Constants
 const DISCOVERY_TIMEOUT = 5000; // Reduced from 10s to 5s
@@ -72,9 +73,42 @@ export class HarmonyManager {
     try {
       const cached = await this.getCachedHubs();
       if (cached) {
-        Logger.info("Using cached hubs");
+        Logger.info(`Found ${cached.length} cached hubs`);
         onProgress?.(1, `Found ${cached.length} cached hub(s)`);
-        return cached;
+        
+        // Verify each cached hub is still accessible
+        Logger.debug("Verifying cached hubs are accessible");
+        const verifiedHubs: HarmonyHub[] = [];
+        for (const hub of cached) {
+          try {
+            const client = new HarmonyClient(hub);
+            await client.connect();
+            await client.disconnect();
+            verifiedHubs.push(hub);
+            Logger.info(`Verified hub ${hub.name} is accessible`);
+          } catch (err) {
+            Logger.warn(`Cached hub ${hub.name} is no longer accessible, will be removed from cache`, err);
+          }
+        }
+
+        if (verifiedHubs.length > 0) {
+          Logger.info(`${verifiedHubs.length} of ${cached.length} cached hubs verified`);
+          if (verifiedHubs.length !== cached.length) {
+            // Update cache with only verified hubs
+            await this.cacheHubs(verifiedHubs);
+          }
+          if (verifiedHubs.length === 1) {
+            const hub = verifiedHubs[0];
+            await showToast({
+              style: Toast.Style.Success,
+              title: "Auto-connecting to Hub",
+              message: `Found single Harmony Hub: ${hub.name}`
+            });
+          }
+          return verifiedHubs;
+        }
+        
+        Logger.info("No cached hubs are accessible, proceeding with discovery");
       }
     } catch (error) {
       Logger.warn("Failed to read cache:", error);
@@ -83,6 +117,7 @@ export class HarmonyManager {
 
     // If discovery is already in progress, return the existing promise
     if (this.discoveryPromise) {
+      Logger.info("Discovery already in progress, returning existing promise");
       return this.discoveryPromise;
     }
 
@@ -92,12 +127,15 @@ export class HarmonyManager {
 
       this.isDiscovering = true;
       onProgress?.(0, "Starting discovery process");
+      Logger.info("Starting hub discovery process");
       this.explorer = new Explorer();
 
       // Create and store the discovery promise
       this.discoveryPromise = new Promise<HarmonyHub[]>((resolve, reject) => {
         if (!this.explorer) {
-          reject(new HarmonyError("Explorer not initialized", ErrorCategory.STATE));
+          const error = new HarmonyError("Explorer not initialized", ErrorCategory.STATE);
+          Logger.error("Discovery failed - explorer not initialized");
+          reject(error);
           return;
         }
 
@@ -107,24 +145,29 @@ export class HarmonyManager {
         const completeDiscovery = async () => {
           await this.cleanup();
           if (hubs.length > 0) {
+            Logger.info(`Discovery completed successfully, found ${hubs.length} hubs`);
             await this.cacheHubs(hubs);
+          } else {
+            Logger.warn("Discovery completed but no hubs were found");
           }
           resolve(hubs);
         };
 
         // Set timeout to stop discovery after DISCOVERY_TIMEOUT
         const timeout = setTimeout(async () => {
-          Logger.info("Discovery timeout");
+          Logger.info("Discovery timeout reached");
           await completeDiscovery();
         }, DISCOVERY_TIMEOUT);
 
         this.explorer.on("online", (data: HubDiscoveryData) => {
           try {
+            Logger.debug("Received hub data", { data });
             const hub = this.createHub(data);
             
             // Check for duplicate hubs
             if (!hubs.some(h => h.hubId === hub.hubId)) {
               hubs.push(hub);
+              Logger.info(`Found hub: ${hub.name} (${hub.ip})`);
               onProgress?.(0.5, `Found hub: ${hub.name}`);
 
               // Clear any existing completion timeout
@@ -138,7 +181,7 @@ export class HarmonyManager {
                 await completeDiscovery();
               }, DISCOVERY_COMPLETE_DELAY);
             } else {
-              Logger.info(`Skipping duplicate hub: ${hub.name}`);
+              Logger.info(`Skipping duplicate hub: ${hub.name} (${hub.ip})`);
             }
           } catch (error) {
             Logger.error("Failed to process hub data:", error);
@@ -161,6 +204,7 @@ export class HarmonyManager {
         });
 
         // Start discovery
+        Logger.debug("Starting explorer");
         this.explorer.start();
       });
 

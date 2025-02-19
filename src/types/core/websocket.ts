@@ -1,22 +1,21 @@
 /**
- * WebSocket-related types for Harmony Hub communication.
+ * WebSocket-related type definitions for Harmony Hub integration
  * @module
  */
 
-import { HarmonyError } from "./core/errors";
-import { HarmonyActivity, HarmonyDevice } from "./harmony";
+import type { HarmonyActivity, HarmonyDevice, HarmonyCommand } from "./harmony";
 
 /**
  * WebSocket connection status
  * @enum {string}
  */
 export enum WebSocketConnectionStatus {
-  /** The WebSocket connection is closed. */
+  /** The WebSocket connection is closed */
   DISCONNECTED = "disconnected",
-  /** The WebSocket connection is being established. */
+  /** The WebSocket connection is being established */
   CONNECTING = "connecting",
-  /** The WebSocket connection is established. */
-  CONNECTED = "connected",
+  /** The WebSocket connection is established */
+  CONNECTED = "connected"
 }
 
 /**
@@ -33,7 +32,7 @@ export enum WebSocketMessageType {
   /** Request to get devices */
   GET_DEVICES = "getdevices",
   /** Request to execute a command */
-  EXECUTE_COMMAND = "executecommand",
+  EXECUTE_COMMAND = "executecommand"
 }
 
 /**
@@ -42,9 +41,9 @@ export enum WebSocketMessageType {
  */
 export interface WebSocketMessage<T = unknown> {
   /** Type of the message */
-  type: WebSocketMessageType;
+  readonly type: WebSocketMessageType;
   /** Payload of the message */
-  payload: T;
+  readonly payload: T;
 }
 
 /**
@@ -53,9 +52,9 @@ export interface WebSocketMessage<T = unknown> {
  */
 export interface CommandPayload {
   /** Device to send command to */
-  deviceId: string;
+  readonly deviceId: string;
   /** Command to execute */
-  command: string;
+  readonly command: string;
 }
 
 /**
@@ -64,11 +63,11 @@ export interface CommandPayload {
  */
 export interface ActivityPayload {
   /** Activity to control */
-  activityId: string;
+  readonly activityId: string;
   /** Optional timestamp */
-  timestamp?: number;
+  readonly timestamp?: number;
   /** Optional status */
-  status?: string;
+  readonly status?: string;
 }
 
 /**
@@ -86,13 +85,13 @@ export type WebSocketMessageUnion =
  */
 export interface WebSocketResponse<T> {
   /** Unique identifier for the response */
-  id: string;
+  readonly id: string;
   /** Status of the response */
-  status: "success" | "error";
+  readonly status: "success" | "error";
   /** Optional response data */
-  data?: T;
+  readonly data?: T;
   /** Optional error information */
-  error?: string;
+  readonly error?: string;
 }
 
 /**
@@ -101,15 +100,15 @@ export interface WebSocketResponse<T> {
  */
 export interface ActivitiesResponse extends WebSocketResponse<HarmonyActivity[]> {
   /** List of activities */
-  activities: Array<{
+  readonly activities: Array<{
     /** Activity ID */
-    id: string;
+    readonly id: string;
     /** Activity name */
-    name: string;
+    readonly name: string;
     /** Activity type */
-    type: string;
+    readonly type: string;
     /** Whether this activity is currently active */
-    isCurrent: boolean;
+    readonly isCurrent: boolean;
   }>;
 }
 
@@ -119,23 +118,23 @@ export interface ActivitiesResponse extends WebSocketResponse<HarmonyActivity[]>
  */
 export interface DevicesResponse extends WebSocketResponse<HarmonyDevice[]> {
   /** List of devices */
-  devices: Array<{
+  readonly devices: Array<{
     /** Device ID */
-    id: string;
+    readonly id: string;
     /** Device name */
-    name: string;
+    readonly name: string;
     /** Device type */
-    type: string;
+    readonly type: string;
     /** Device commands */
-    commands: Array<{
+    readonly commands: Array<{
       /** Command ID */
-      id: string;
+      readonly id: string;
       /** Command name */
-      name: string;
+      readonly name: string;
       /** Command label */
-      label: string;
+      readonly label: string;
       /** Command group */
-      group?: string;
+      readonly group?: string;
     }>;
   }>;
 }
@@ -158,11 +157,11 @@ export type WebSocketErrorHandler = (error: Error) => void;
  */
 export interface QueuedMessage<T> {
   /** Unique identifier for the message */
-  id: string;
+  readonly id: string;
   /** Resolve function for the message */
-  resolve: (value: WebSocketResponse<T>) => void;
+  readonly resolve: (value: WebSocketResponse<T>) => void;
   /** Reject function for the message */
-  reject: (error: Error) => void;
+  readonly reject: (error: Error) => void;
   /** Timestamp for the message */
-  timestamp: number;
-}
+  readonly timestamp: number;
+} 

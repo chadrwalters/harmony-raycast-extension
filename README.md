@@ -1,124 +1,78 @@
-# Harmony Control for Raycast
+# Harmony Raycast Extension
 
-Control your Logitech Harmony Hub devices directly from Raycast with a modern, efficient interface.
-
-![Harmony Control](metadata/harmony-control-1.png)
+Control your Logitech Harmony Hub directly from Raycast. This extension allows you to manage your devices, execute commands, and control activities without leaving your keyboard.
 
 ## Features
 
-- 🔍 **Smart Hub Discovery**: Automatic hub detection on your local network
-- 📱 **Universal Control**: Manage all your Harmony devices and activities
-- ⚡️ **Quick Commands**: Fast command execution with intelligent caching
-- 🎯 **Efficient Navigation**: Keyboard shortcuts for quick access
-- 🔄 **Reliable Connection**: Automatic reconnection and error recovery
-- 🔒 **Secure Storage**: Safe storage of hub configurations
-- 💨 **Performance**: Optimized for speed with command queuing and state caching
-
-## Requirements
-
-- Logitech Harmony Hub connected to your local network
-- macOS 11.0 or later
-- Raycast v1.50.0 or later
-- Network allowing local device discovery (ports 35000-35004)
+- 🔍 Automatic hub discovery on your network
+- 📱 Control all your Harmony-connected devices
+- ⚡️ Quick access to device commands
+- 🎮 Start and stop activities
+- 🔄 Real-time status updates
+- ⌨️ Full keyboard navigation
 
 ## Installation
 
-1. Open Raycast
-2. Search for "Harmony Control"
-3. Click Install
+1. Make sure you have [Raycast](https://raycast.com/) installed
+2. Install the Harmony extension from the Raycast store
+3. The extension will automatically discover your Harmony Hub(s) on the network
 
 ## Usage
 
-### First Launch
+### Hub Connection
 
-1. Launch with `⌘ Space` and type "Harmony"
-2. Wait for automatic hub discovery (usually takes 15-30 seconds)
-3. Select your hub when found
-4. Start controlling your devices!
+The extension will automatically discover Harmony Hubs on your local network. 
 
-### Key Features
+**Note**: If only one Harmony Hub is found on your network, the extension will automatically connect to it. This auto-connection behavior is designed to streamline the experience for users with a single hub setup.
 
-#### Device Control
-- Browse and control all your Harmony-configured devices
-- Execute device-specific commands (power, volume, inputs, etc.)
-- Quick access to frequently used commands
+### Device Control
 
-#### Activity Management
-- Start and stop Harmony activities
-- View current activity status
-- Quick switching between activities
+1. Select a device from the list
+2. Browse available commands
+3. Execute commands with a single click or keyboard shortcut
 
-#### Smart Navigation
-- `⌘ ⇧ A`: Switch to Activities view
-- `⌘ ⇧ D`: Switch to Devices view
-- `⌘ ⏎`: Execute selected command
-- `⌘ B`: Go back to device list
+### Activities
 
-### Preferences
+1. View all configured activities
+2. Start or stop activities
+3. See real-time activity status
 
-Configure the extension in Raycast preferences:
+## Keyboard Shortcuts
 
-#### View Settings
-- **Default View**: Choose between 'activities' or 'devices' as your starting view
-- **List Style**: Configure how devices and commands are displayed
-
-#### Performance
-- **Cache Duration**: Control how long device data is cached
-- **Command Queue**: Adjust command execution timing
-- **Network Timeout**: Set timeouts for network operations
-
-#### Debug Options
-- **Debug Mode**: Enable detailed logging for troubleshooting
-- **Auto Retry**: Configure automatic retry behavior for failed commands
+- `⌘ + R`: Refresh hub/device list
+- `⌘ + [`: Go back to previous view
+- `⌘ + Backspace`: Clear cache
+- `⌘ + Shift + R`: Reconnect to hub
+- `⌘ + Shift + A`: Switch to Activities view
+- `⌘ + Shift + D`: Switch to Devices view
+- `⌘ + K`: Open command palette for quick actions
 
 ## Troubleshooting
 
-### Hub Discovery Issues
+If you encounter any issues:
 
-If your hub isn't found automatically:
-1. Verify the hub is powered on and connected to your network
-2. Check that your Mac and hub are on the same network
-3. Ensure ports 35000-35004 are not blocked by your firewall
-4. Try restarting your Harmony Hub
+1. Try refreshing the hub connection (⌘ + R)
+2. Clear the cache (⌘ + Backspace)
+3. Ensure your Harmony Hub is on the same network
+4. Check your network firewall settings
 
-### Connection Problems
+## Development
 
-If you experience connection issues:
-1. Check your network connectivity
-2. Verify the hub's IP hasn't changed
-3. Try clearing the extension's cache
-4. Restart the extension
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/harmony-raycast-extension.git
 
-### Command Execution Failures
+# Install dependencies
+npm install
 
-If commands aren't working:
-1. Ensure the target device is powered on
-2. Check if the hub has line of sight to the device
-3. Verify the command is supported by your device
-4. Try restarting the current activity
-
-## Technical Details
-
-The extension uses a modern TypeScript/React architecture with:
-- WebSocket-based communication for reliable control
-- Intelligent command queuing for consistent execution
-- Local state caching for improved performance
-- Comprehensive error handling and recovery
-- Secure storage for hub configurations
-
-For detailed technical information, see [Architecture Documentation](docs/architecture.md).
-
-## Support
-
-If you encounter issues:
-1. Check the [Troubleshooting Guide](#troubleshooting)
-2. Enable debug mode in preferences for detailed logs
-3. File an issue on GitHub with logs and steps to reproduce
+# Run in development mode
+npm run dev
+```
 
 ## Contributing
 
-Contributions are welcome! Please read our contributing guidelines and code of conduct before submitting pull requests.
+Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
 ## License
 
-MIT License - see LICENSE file for details
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

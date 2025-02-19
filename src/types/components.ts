@@ -5,7 +5,7 @@
 
 import { Icon } from "@raycast/api";
 import { HarmonyHub, HarmonyDevice, HarmonyActivity } from "./harmony";
-import { HarmonyError } from "./errors";
+import { HarmonyError } from "./core/errors";
 
 /**
  * Props for components that display feedback states (loading, error, empty)

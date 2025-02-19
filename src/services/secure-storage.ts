@@ -1,10 +1,11 @@
 // External dependencies
-import { LocalStorage } from "@raycast/api";
+import { getPreferenceValues, LocalStorage } from "@raycast/api";
 import crypto from "crypto";
+import { Preferences } from "../types/preferences";
+import { ErrorCategory, HarmonyError } from "../types/core/errors";
 
 // Core services
 import { ErrorHandler } from "./errorHandler";
-import { ErrorCategory, HarmonyError } from "../types/errors";
 import { HarmonyHub } from "../types/harmony";
 import { Logger } from "./logger";
 

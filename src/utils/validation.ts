@@ -1,4 +1,4 @@
-import { HarmonyError, ErrorCategory, RetryConfig, TimeoutConfig, ErrorSeverity } from "../types/errors";
+import { HarmonyError, ErrorCategory, RetryConfig, TimeoutConfig, ErrorSeverity } from "../types/core/errors";
 import { HarmonyHub, HarmonyDevice, HarmonyActivity, CommandRequest, HarmonyCommand } from "../types/harmony";
 import { Logger } from "../services/logger";
 

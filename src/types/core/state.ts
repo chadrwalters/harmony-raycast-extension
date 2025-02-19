@@ -1,5 +1,11 @@
-import { HarmonyHub, HarmonyDevice, HarmonyActivity } from "./harmony";
-import { HarmonyError } from "./core/errors";
+/**
+ * State-related type definitions for Harmony Hub integration
+ * @module
+ */
+
+import type { HarmonyHub, HarmonyDevice, HarmonyActivity } from "./harmony";
+import type { HarmonyError } from "./errors";
+import type { LoadingState } from "./harmony";
 
 /**
  * State machine states for Harmony Hub control
@@ -15,7 +21,7 @@ export enum MachineState {
   /** Connected to a hub */
   CONNECTED = "CONNECTED",
   /** Error state */
-  ERROR = "ERROR",
+  ERROR = "ERROR"
 }
 
 /**
@@ -24,17 +30,17 @@ export enum MachineState {
  */
 export interface MachineContext {
   /** List of available hubs */
-  hubs: HarmonyHub[];
+  readonly hubs: readonly HarmonyHub[];
   /** Currently selected hub */
-  selectedHub: HarmonyHub | null;
+  readonly selectedHub: HarmonyHub | null;
   /** Available devices on the hub */
-  devices: HarmonyDevice[];
+  readonly devices: readonly HarmonyDevice[];
   /** Available activities on the hub */
-  activities: HarmonyActivity[];
+  readonly activities: readonly HarmonyActivity[];
   /** Currently running activity */
-  currentActivity: HarmonyActivity | null;
+  readonly currentActivity: HarmonyActivity | null;
   /** Error state if any */
-  error: HarmonyError | null;
+  readonly error: HarmonyError | null;
 }
 
 /**
@@ -42,7 +48,7 @@ export interface MachineContext {
  * @interface DiscoverEvent
  */
 export interface DiscoverEvent {
-  type: "DISCOVER";
+  readonly type: "DISCOVER";
 }
 
 /**
@@ -50,9 +56,9 @@ export interface DiscoverEvent {
  * @interface SelectHubEvent
  */
 export interface SelectHubEvent {
-  type: "SELECT_HUB";
+  readonly type: "SELECT_HUB";
   /** Hub to select */
-  hub: HarmonyHub;
+  readonly hub: HarmonyHub;
 }
 
 /**
@@ -60,7 +66,7 @@ export interface SelectHubEvent {
  * @interface RefreshEvent
  */
 export interface RefreshEvent {
-  type: "REFRESH";
+  readonly type: "REFRESH";
 }
 
 /**
@@ -68,7 +74,7 @@ export interface RefreshEvent {
  * @interface RetryEvent
  */
 export interface RetryEvent {
-  type: "RETRY";
+  readonly type: "RETRY";
 }
 
 /**
@@ -76,7 +82,7 @@ export interface RetryEvent {
  * @interface ClearEvent
  */
 export interface ClearEvent {
-  type: "CLEAR";
+  readonly type: "CLEAR";
 }
 
 /**
@@ -84,7 +90,7 @@ export interface ClearEvent {
  * @interface DisconnectEvent
  */
 export interface DisconnectEvent {
-  type: "DISCONNECT";
+  readonly type: "DISCONNECT";
 }
 
 /**
@@ -92,9 +98,9 @@ export interface DisconnectEvent {
  * @interface ErrorEvent
  */
 export interface ErrorEvent {
-  type: "error.platform";
+  readonly type: "error.platform";
   /** Error that occurred */
-  data: HarmonyError;
+  readonly data: HarmonyError;
 }
 
 /**
@@ -102,10 +108,10 @@ export interface ErrorEvent {
  * @interface DoneDiscoverEvent
  */
 export interface DoneDiscoverEvent {
-  type: "done.invoke.discoverHubs";
+  readonly type: "done.invoke.discoverHubs";
   /** List of discovered hubs */
-  data: {
-    hubs: HarmonyHub[];
+  readonly data: {
+    readonly hubs: readonly HarmonyHub[];
   };
 }
 
@@ -114,11 +120,11 @@ export interface DoneDiscoverEvent {
  * @interface DoneLoadHubEvent
  */
 export interface DoneLoadHubEvent {
-  type: "done.invoke.loadHubData";
+  readonly type: "done.invoke.loadHubData";
   /** Loaded hub data */
-  data: {
-    devices: HarmonyDevice[];
-    activities: HarmonyActivity[];
+  readonly data: {
+    readonly devices: readonly HarmonyDevice[];
+    readonly activities: readonly HarmonyActivity[];
   };
 }
 
@@ -142,10 +148,34 @@ export type MachineEvent =
  * @interface MachineServices
  */
 export interface MachineServices {
-  discoverHubs: {
-    data: { hubs: HarmonyHub[] };
+  readonly discoverHubs: {
+    readonly data: { readonly hubs: readonly HarmonyHub[] };
   };
-  loadHubData: {
-    data: { devices: HarmonyDevice[]; activities: HarmonyActivity[] };
+  readonly loadHubData: {
+    readonly data: {
+      readonly devices: readonly HarmonyDevice[];
+      readonly activities: readonly HarmonyActivity[];
+    };
   };
 }
+
+/**
+ * Core state for Harmony operations
+ * @interface HarmonyState
+ */
+export interface HarmonyState {
+  /** Available Harmony Hubs */
+  readonly hubs: readonly HarmonyHub[];
+  /** Currently selected hub */
+  readonly selectedHub: HarmonyHub | null;
+  /** Available devices */
+  readonly devices: readonly HarmonyDevice[];
+  /** Available activities */
+  readonly activities: readonly HarmonyActivity[];
+  /** Currently running activity */
+  readonly currentActivity: HarmonyActivity | null;
+  /** Current error if any */
+  readonly error: Error | null;
+  /** Current loading state */
+  readonly loadingState: LoadingState;
+} 

@@ -1,5 +1,5 @@
 import { HarmonyHub, HarmonyDevice, HarmonyActivity, HarmonyCommand } from "../../types/harmony";
-import { HarmonyError, ErrorCategory } from "../../types/errors";
+import { HarmonyError, ErrorCategory } from "../../types/core/errors";
 import { Logger } from "../logger";
 import getHarmonyClient from "@harmonyhub/client-ws";
 import { getPreferenceValues, LocalStorage } from "@raycast/api";
@@ -91,17 +91,24 @@ export class HarmonyClient {
    */
   public async connect(): Promise<void> {
     if (this.isConnected) {
+      Logger.info(`Already connected to hub ${this.hub.name}`);
       return;
     }
 
     try {
-      Logger.info(`Connecting to hub ${this.hub.name} (${this.hub.ip})`);
+      Logger.info(`Initiating connection to hub ${this.hub.name} (${this.hub.ip})`);
       
       // Create client with remoteId if available for faster connection
+      Logger.debug("Creating Harmony client", {
+        hubIp: this.hub.ip,
+        hubId: this.hub.hubId,
+        remoteId: this.hub.remoteId
+      });
+      
       this.client = await getHarmonyClient(this.hub.ip);
       this.isConnected = true;
       
-      Logger.info(`Connected to hub ${this.hub.name}`);
+      Logger.info(`Successfully connected to hub ${this.hub.name}`);
 
       // Setup disconnect handler
       this.client?.on("disconnected", () => {
@@ -109,13 +116,25 @@ export class HarmonyClient {
         this.isConnected = false;
       });
 
+      // Verify connection by attempting to get config
+      Logger.debug("Verifying connection by fetching initial config");
+      await this.getDevicesFromHub();
+      Logger.info("Connection verified successfully");
+
     } catch (err) {
       this.isConnected = false;
-      throw new HarmonyError(
+      this.client = null;
+      const error = new HarmonyError(
         `Failed to connect to hub ${this.hub.name}`,
         ErrorCategory.CONNECTION,
         err instanceof Error ? err : undefined
       );
+      Logger.error("Connection failed", {
+        error: error.getDetailedMessage(),
+        hubName: this.hub.name,
+        hubIp: this.hub.ip
+      });
+      throw error;
     }
   }
 
@@ -136,18 +155,20 @@ export class HarmonyClient {
       }
 
       // Get from hub if not cached
-      const devices = await this.getDevicesFromHub();
-      const mappedDevices = devices.map(device => ({
+      const rawDevices = await this.getDevicesFromHub();
+      const mappedDevices = rawDevices.map(device => ({
         id: device.id,
-        name: device.name,
-        type: device.type,
-        commands: device.commands.map(command => ({
-          id: command.name,
-          name: command.name,
-          label: command.label,
-          deviceId: device.id,
-          group: command.action?.command || "IRCommand"
-        }))
+        name: device.label || device.id,
+        type: device.type || "Unknown",
+        commands: device.controlGroup.flatMap(group => 
+          group.function.map(fn => ({
+            id: fn.name,
+            name: fn.name,
+            label: fn.label || fn.name,
+            deviceId: device.id,
+            group: fn.action?.command || "IRCommand"
+          }))
+        )
       })) as HarmonyDevice[];
 
       // Cache the new devices along with current activities
@@ -187,33 +208,7 @@ export class HarmonyClient {
         Logger.info("First device raw config:", JSON.stringify(rawConfig.device[0], null, 2));
       }
       
-      const devices = rawConfig.device?.map((d: RawDevice) => {
-        Logger.info(`Processing device ${d.label || d.id}`);
-        Logger.info(`Control groups:`, JSON.stringify(d.controlGroup, null, 2));
-        
-        const commands = d.controlGroup?.flatMap((group: ControlGroup) => {
-          Logger.info(`Processing control group ${group.name} with ${group.function?.length || 0} functions`);
-          return (group.function || []).map((fn: CommandFunction) => {
-            Logger.info(`Processing function ${fn.name} with action:`, JSON.stringify(fn.action, null, 2));
-            return {
-              name: fn.name,
-              label: fn.label || fn.name,
-              action: fn.action
-            };
-          });
-        }) || [];
-        
-        Logger.info(`Device ${d.label || d.id} has ${commands.length} commands`);
-        
-        return {
-          id: d.id || "",
-          name: d.label || "",
-          type: d.type || "Unknown",
-          commands: commands
-        };
-      }) || [];
-
-      return devices;
+      return rawConfig.device;
     } catch (err) {
       throw new HarmonyError(
         "Failed to get devices from hub",
