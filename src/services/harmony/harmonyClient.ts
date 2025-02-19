@@ -8,13 +8,13 @@ import getHarmonyClient from "@harmonyhub/client-ws";
 import { getPreferenceValues, LocalStorage } from "@raycast/api";
 
 import { HarmonyError, ErrorCategory } from "../../types/core/errors";
-import { 
-  HarmonyHub, 
-  HarmonyDevice, 
-  HarmonyActivity, 
+import {
+  HarmonyHub,
+  HarmonyDevice,
+  HarmonyActivity,
   HarmonyCommand,
   isHarmonyDevice,
-  isHarmonyActivity 
+  isHarmonyActivity,
 } from "../../types/core/harmony";
 import { Logger } from "../logger";
 
@@ -207,9 +207,9 @@ export class HarmonyClient {
 
       // Get from hub if not cached
       const rawDevices = await this.getDevicesFromHub();
-      Logger.debug("Mapping raw devices to HarmonyDevice", { 
+      Logger.debug("Mapping raw devices to HarmonyDevice", {
         deviceCount: rawDevices.length,
-        firstDevice: rawDevices[0] 
+        firstDevice: rawDevices[0],
       });
 
       const mappedDevices = rawDevices.map((device) => {
@@ -231,21 +231,18 @@ export class HarmonyClient {
         // Validate mapped device
         if (!isHarmonyDevice(mappedDevice)) {
           Logger.error("Invalid device mapping", { device, mappedDevice });
-          throw new HarmonyError(
-            `Invalid device mapping for ${device.id}`,
-            ErrorCategory.VALIDATION,
-          );
+          throw new HarmonyError(`Invalid device mapping for ${device.id}`, ErrorCategory.VALIDATION);
         }
 
         return mappedDevice;
       });
 
-      Logger.debug("Successfully mapped devices", { 
+      Logger.debug("Successfully mapped devices", {
         deviceCount: mappedDevices.length,
-        commandCounts: mappedDevices.map(d => ({ 
-          deviceId: d.id, 
-          commandCount: d.commands.length 
-        }))
+        commandCounts: mappedDevices.map((d) => ({
+          deviceId: d.id,
+          commandCount: d.commands.length,
+        })),
       });
 
       // Cache the new devices along with current activities
@@ -360,9 +357,9 @@ export class HarmonyClient {
       const activity = activities.find((a) => a.id === currentActivityId);
 
       if (!activity) {
-        Logger.warn("Current activity not found in activity list", { 
+        Logger.warn("Current activity not found in activity list", {
           currentActivityId,
-          availableActivities: activities.map(a => a.id)
+          availableActivities: activities.map((a) => a.id),
         });
         return null;
       }
@@ -375,10 +372,7 @@ export class HarmonyClient {
       // Validate current activity
       if (!isHarmonyActivity(currentActivity)) {
         Logger.error("Invalid current activity", { currentActivity });
-        throw new HarmonyError(
-          "Invalid current activity data",
-          ErrorCategory.VALIDATION,
-        );
+        throw new HarmonyError("Invalid current activity data", ErrorCategory.VALIDATION);
       }
 
       return currentActivity;
@@ -595,11 +589,11 @@ export class HarmonyClient {
    */
   private isRawActivity(data: unknown): data is RawActivity {
     return (
-      typeof data === 'object' &&
+      typeof data === "object" &&
       data !== null &&
-      typeof (data as RawActivity).id === 'string' &&
-      typeof (data as RawActivity).label === 'string' &&
-      typeof (data as RawActivity).type === 'string'
+      typeof (data as RawActivity).id === "string" &&
+      typeof (data as RawActivity).label === "string" &&
+      typeof (data as RawActivity).type === "string"
     );
   }
 
@@ -646,7 +640,7 @@ export class HarmonyClient {
 
     Logger.debug("Got activities from hub", {
       activityCount: activities.length,
-      firstActivity: activities[0]
+      firstActivity: activities[0],
     });
 
     return activities;

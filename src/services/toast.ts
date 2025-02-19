@@ -1,5 +1,6 @@
 /**
- * Toast utility for user notifications
+ * Toast notification service for Harmony Hub integration.
+ * Provides consistent user feedback through Raycast toasts.
  * @module
  */
 
@@ -9,39 +10,40 @@ import { Logger } from "./logger";
 
 /**
  * Configuration for toast notifications
+ * @interface ToastConfig
  */
 interface ToastConfig {
   /** Whether to log toast messages */
   logToasts: boolean;
-  /** Whether to include timestamps in logs */
-  includeTimestamp: boolean;
 }
 
 /**
  * Default configuration for toast notifications
  */
-const defaultConfig: ToastConfig = {
+const DEFAULT_CONFIG: ToastConfig = {
   logToasts: true,
-  includeTimestamp: true,
 };
 
 /**
- * ToastManager class for consistent user notifications across the application.
- * Provides methods for showing different types of toasts and optional logging.
+ * Service for managing toast notifications.
+ * Provides consistent user feedback with optional logging.
  */
 export class ToastManager {
-  private static config: ToastConfig = defaultConfig;
+  /** Current toast configuration */
+  private static config: ToastConfig = DEFAULT_CONFIG;
 
   /**
-   * Configure the toast manager
-   * @param config - Partial configuration to merge with defaults
+   * Configure toast notifications.
+   * Updates toast settings while preserving defaults.
+   * @param config - New toast configuration
    */
   static configure(config: Partial<ToastConfig>): void {
-    ToastManager.config = { ...defaultConfig, ...config };
+    ToastManager.config = { ...DEFAULT_CONFIG, ...config };
   }
 
   /**
-   * Show a success toast
+   * Show a success toast.
+   * Displays a success message with optional details.
    * @param title - Toast title
    * @param message - Optional toast message
    */
@@ -58,7 +60,8 @@ export class ToastManager {
   }
 
   /**
-   * Show an error toast
+   * Show an error toast.
+   * Displays an error message with optional details.
    * @param title - Toast title
    * @param message - Optional toast message
    */
@@ -75,24 +78,8 @@ export class ToastManager {
   }
 
   /**
-   * Show a warning toast
-   * @param title - Toast title
-   * @param message - Optional toast message
-   */
-  static async warning(title: string, message?: string): Promise<void> {
-    if (ToastManager.config.logToasts) {
-      Logger.warn(`Warning: ${title}${message ? ` - ${message}` : ""}`);
-    }
-
-    await showToast({
-      style: Toast.Style.Failure, // Raycast doesn't have a warning style
-      title,
-      message,
-    });
-  }
-
-  /**
-   * Show a loading toast
+   * Show a loading toast.
+   * Displays a loading indicator with optional message.
    * @param title - Toast title
    * @param message - Optional toast message
    */

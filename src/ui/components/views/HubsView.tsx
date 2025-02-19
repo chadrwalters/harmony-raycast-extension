@@ -1,14 +1,33 @@
+/**
+ * View component for displaying and selecting Harmony Hubs.
+ * Shows discovered hubs with their connection status and version.
+ * @module
+ */
+
 import { List, Icon, Action, ActionPanel } from "@raycast/api";
 import { memo } from "react";
 
 import { useHarmony } from "../../../hooks/useHarmony";
 import { HarmonyHub } from "../../../types/core/harmony";
 
+/**
+ * Props for the HubsView component
+ * @interface HubsViewProps
+ */
 interface HubsViewProps {
+  /** Callback when a hub is selected */
   onHubSelect: (hub: HarmonyHub) => void;
+  /** Optional callback to go back */
   onBack?: () => void;
 }
 
+/**
+ * Component for displaying and selecting Harmony Hubs.
+ * Shows discovered hubs with their connection status and firmware version.
+ * Provides actions for selecting hubs and managing connections.
+ * @param props - Component props
+ * @returns JSX element
+ */
 function HubsViewImpl({ onHubSelect, onBack }: HubsViewProps): JSX.Element {
   const { hubs, refresh, clearCache } = useHarmony();
 

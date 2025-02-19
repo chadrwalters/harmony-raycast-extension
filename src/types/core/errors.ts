@@ -9,8 +9,14 @@
 export enum ErrorCategory {
   /** Network or connection errors */
   CONNECTION = "CONNECTION",
+  /** Network-specific errors */
+  NETWORK = "NETWORK",
+  /** WebSocket-specific errors */
+  WEBSOCKET = "WEBSOCKET",
   /** Hub communication errors */
   HUB_COMMUNICATION = "HUB_COMMUNICATION",
+  /** Command-related errors */
+  COMMAND = "COMMAND",
   /** Command execution errors */
   COMMAND_EXECUTION = "COMMAND_EXECUTION",
   /** Activity start errors */
@@ -24,9 +30,19 @@ export enum ErrorCategory {
   /** State validation errors */
   STATE = "STATE",
   /** Data validation errors */
+  DATA = "DATA",
+  /** Validation errors */
   VALIDATION = "VALIDATION",
   /** Discovery errors */
   DISCOVERY = "DISCOVERY",
+  /** Queue-related errors */
+  QUEUE = "QUEUE",
+  /** Harmony-specific errors */
+  HARMONY = "HARMONY",
+  /** Authentication errors */
+  AUTHENTICATION = "AUTHENTICATION",
+  /** System-level errors */
+  SYSTEM = "SYSTEM",
   /** Unknown errors */
   UNKNOWN = "UNKNOWN",
 }
@@ -51,8 +67,18 @@ export interface RetryContext {
   readonly attempts: number;
   /** Maximum number of attempts allowed */
   readonly maxAttempts: number;
+  /** Time of first attempt */
+  readonly firstAttempt: number;
   /** Timestamp of the last attempt */
   readonly lastAttemptTimestamp: number;
+  /** Next scheduled retry time */
+  readonly nextRetry: number | null;
+  /** Whether maximum retries have been reached */
+  readonly maxRetriesReached: boolean;
+  /** Total retry duration in milliseconds */
+  readonly totalDuration: number;
+  /** Success rate of previous attempts */
+  readonly successRate?: number;
   /** Delay between attempts in milliseconds */
   readonly delayMs: number;
 }
@@ -67,8 +93,8 @@ export interface ErrorRecoveryStrategy {
   readonly description: string;
   /** Whether the strategy can be automated */
   readonly isAutomatic: boolean;
-  /** Steps to perform for recovery */
-  readonly steps: string[];
+  /** Recovery actions to attempt */
+  readonly actions: ErrorRecoveryAction[];
 }
 
 /**
@@ -85,6 +111,24 @@ export interface ErrorDetails {
   allowedValues?: readonly string[];
   /** Additional context */
   [key: string]: unknown;
+}
+
+/**
+ * Recovery actions available for different error types
+ */
+export enum ErrorRecoveryAction {
+  /** Retry the failed operation */
+  RETRY = "RETRY",
+  /** Reconnect to the hub */
+  RECONNECT = "RECONNECT",
+  /** Clear local cache */
+  CLEAR_CACHE = "CLEAR_CACHE",
+  /** Reset configuration */
+  RESET_CONFIG = "RESET_CONFIG",
+  /** Restart the hub */
+  RESTART = "RESTART",
+  /** Manual intervention required */
+  MANUAL = "MANUAL",
 }
 
 /**
@@ -198,5 +242,84 @@ export class HarmonyError extends Error {
     }
 
     return details.join("\n");
+  }
+
+  /**
+   * Gets the default recovery strategy for this error
+   * @returns The default recovery strategy for this error type
+   */
+  getDefaultRecoveryStrategy(): ErrorRecoveryStrategy {
+    switch (this.category) {
+      case ErrorCategory.CONNECTION:
+      case ErrorCategory.NETWORK:
+      case ErrorCategory.WEBSOCKET:
+      case ErrorCategory.HUB_COMMUNICATION:
+        return {
+          name: "Connection Recovery",
+          description: "Attempt to restore connection to the hub",
+          isAutomatic: true,
+          actions: [ErrorRecoveryAction.RECONNECT],
+        };
+
+      case ErrorCategory.COMMAND:
+      case ErrorCategory.COMMAND_EXECUTION:
+        return {
+          name: "Command Recovery",
+          description: "Attempt to re-execute the command",
+          isAutomatic: true,
+          actions: [ErrorRecoveryAction.RETRY],
+        };
+
+      case ErrorCategory.ACTIVITY_START:
+      case ErrorCategory.ACTIVITY_STOP:
+        return {
+          name: "Activity Recovery",
+          description: "Attempt to retry the activity operation",
+          isAutomatic: true,
+          actions: [ErrorRecoveryAction.RETRY],
+        };
+
+      case ErrorCategory.CACHE:
+      case ErrorCategory.STORAGE:
+        return {
+          name: "Storage Recovery",
+          description: "Clear and rebuild cache data",
+          isAutomatic: true,
+          actions: [ErrorRecoveryAction.CLEAR_CACHE],
+        };
+
+      case ErrorCategory.STATE:
+        return {
+          name: "State Recovery",
+          description: "Reset application state",
+          isAutomatic: false,
+          actions: [ErrorRecoveryAction.RESET_CONFIG, ErrorRecoveryAction.CLEAR_CACHE, ErrorRecoveryAction.RECONNECT],
+        };
+
+      case ErrorCategory.DATA:
+      case ErrorCategory.VALIDATION:
+        return {
+          name: "Data Recovery",
+          description: "Refresh data from hub",
+          isAutomatic: true,
+          actions: [ErrorRecoveryAction.RETRY, ErrorRecoveryAction.CLEAR_CACHE],
+        };
+
+      case ErrorCategory.DISCOVERY:
+        return {
+          name: "Discovery Recovery",
+          description: "Retry hub discovery",
+          isAutomatic: true,
+          actions: [ErrorRecoveryAction.RETRY],
+        };
+
+      default:
+        return {
+          name: "Manual Recovery",
+          description: "Manual intervention required",
+          isAutomatic: false,
+          actions: [ErrorRecoveryAction.MANUAL],
+        };
+    }
   }
 }

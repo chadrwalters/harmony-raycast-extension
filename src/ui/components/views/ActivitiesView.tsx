@@ -1,14 +1,33 @@
+/**
+ * View component for displaying and managing Harmony activities.
+ * Shows activities grouped by type with status indicators and actions.
+ * @module
+ */
+
 import { List, Icon, Action, ActionPanel } from "@raycast/api";
 import { memo, useMemo } from "react";
 
 import { useHarmony } from "../../../hooks/useHarmony";
 import { HarmonyActivity } from "../../../types/core/harmony";
 
+/**
+ * Props for the ActivitiesView component
+ * @interface ActivitiesViewProps
+ */
 interface ActivitiesViewProps {
+  /** Callback when an activity is selected */
   onActivitySelect: (activity: HarmonyActivity) => void;
+  /** Optional callback to go back */
   onBack?: () => void;
 }
 
+/**
+ * Component for displaying and managing Harmony activities.
+ * Groups activities by type and shows their current status.
+ * Provides actions for starting/stopping activities.
+ * @param props - Component props
+ * @returns JSX element
+ */
 function ActivitiesViewImpl({ onActivitySelect, onBack }: ActivitiesViewProps): JSX.Element {
   const { activities, refresh, clearCache } = useHarmony();
 

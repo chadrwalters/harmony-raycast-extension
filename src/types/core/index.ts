@@ -30,27 +30,21 @@ export {
 } from "./harmony";
 
 // Re-export error types
-export { HarmonyError, isHarmonyError, wrapError } from "./errors";
+export { HarmonyError, ErrorSeverity, ErrorRecoveryAction } from "./errors";
+export type { RetryContext } from "./errors";
 
 // Re-export validation functions
 export { validateHub, validateDevice, validateCommand, validateActivity, validateLoadingState } from "./validation";
 
 // Re-export command types
-export type {
-  CommandQueueConfig,
-  CommandRequest,
-  CommandResult,
-  RetryConfig,
-  TimeoutConfig,
-  RetryContext,
-} from "./command";
+export type { CommandQueueConfig, CommandRequest, CommandResult, RetryConfig, TimeoutConfig } from "./command";
 
-export { CommandStatus, ErrorRecoveryAction } from "./command";
+export { CommandStatus } from "./command";
 
 // Re-export logging types
 export type { LoggerOptions, LogEntry, ILogger, LogFilter, LogFormatter } from "./logging";
 
-export { LogLevel, ErrorSeverity } from "./logging";
+export { LogLevel } from "./logging";
 
 // Re-export WebSocket types
 export type {

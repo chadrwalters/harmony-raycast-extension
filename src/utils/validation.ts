@@ -342,15 +342,21 @@ export function validateCommand(command: Partial<HarmonyCommand>): asserts comma
  * @param name - Name of the preference for error messages
  * @throws {HarmonyError} If the value is invalid
  */
-export function validateNumericPreference(value: unknown, min: number, max: number, name: string): asserts value is number {
+export function validateNumericPreference(
+  value: unknown,
+  min: number,
+  max: number,
+  name: string,
+): asserts value is number {
   if (typeof value !== "number" || isNaN(value)) {
     throw new HarmonyError(
       `${name} must be a number`,
       ErrorCategory.VALIDATION,
       undefined,
-      { type: typeof value },
+      undefined,
       false,
       "INVALID_NUMERIC_PREFERENCE",
+      { type: typeof value },
     );
   }
 
@@ -359,9 +365,10 @@ export function validateNumericPreference(value: unknown, min: number, max: numb
       `${name} must be between ${min} and ${max}`,
       ErrorCategory.VALIDATION,
       undefined,
-      { min, max },
+      undefined,
       false,
       "NUMERIC_PREFERENCE_OUT_OF_RANGE",
+      { min, max },
     );
   }
 
@@ -385,9 +392,10 @@ export function validateStringPreference(
       `${name} must be a string`,
       ErrorCategory.VALIDATION,
       undefined,
-      { type: typeof value },
+      undefined,
       false,
       "INVALID_STRING_PREFERENCE",
+      { type: typeof value },
     );
   }
 
@@ -396,9 +404,10 @@ export function validateStringPreference(
       `${name} must be one of: ${allowedValues.join(", ")}`,
       ErrorCategory.VALIDATION,
       undefined,
-      { allowedValues },
+      undefined,
       false,
       "STRING_PREFERENCE_NOT_ALLOWED",
+      { allowedValues },
     );
   }
 
@@ -417,9 +426,10 @@ export function validateBooleanPreference(value: unknown, name: string): asserts
       `${name} must be a boolean`,
       ErrorCategory.VALIDATION,
       undefined,
-      { type: typeof value },
+      undefined,
       false,
       "INVALID_BOOLEAN_PREFERENCE",
+      { type: typeof value },
     );
   }
 

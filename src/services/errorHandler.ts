@@ -1,3 +1,9 @@
+/**
+ * Error handling service for Harmony Hub integration.
+ * Provides centralized error handling, logging, and user feedback.
+ * @module
+ */
+
 import { showToast, Toast } from "@raycast/api";
 
 import { HarmonyError, ErrorCategory, ErrorSeverity, ErrorRecoveryAction } from "../types/core/errors";
@@ -6,6 +12,7 @@ import { Logger } from "./logger";
 
 /**
  * Configuration for error handling
+ * @interface ErrorHandlerConfig
  */
 interface ErrorHandlerConfig {
   /** Whether to show toasts for errors */
@@ -21,7 +28,7 @@ interface ErrorHandlerConfig {
 /**
  * Default configuration for error handling
  */
-const defaultConfig: ErrorHandlerConfig = {
+const DEFAULT_CONFIG: ErrorHandlerConfig = {
   showToasts: true,
   logErrors: true,
   defaultCategory: ErrorCategory.UNKNOWN,
@@ -29,22 +36,26 @@ const defaultConfig: ErrorHandlerConfig = {
 };
 
 /**
- * ErrorHandler class for consistent error handling across the application.
- * Provides methods for handling errors, showing user feedback, and logging.
+ * Service for handling errors in the Harmony extension.
+ * Provides centralized error handling with logging and user feedback.
  */
 export class ErrorHandler {
-  private static config: ErrorHandlerConfig = defaultConfig;
+  /** Current error handler configuration */
+  private static config: ErrorHandlerConfig = DEFAULT_CONFIG;
 
   /**
    * Configure the error handler
    * @param config - Partial configuration to merge with defaults
    */
   static configure(config: Partial<ErrorHandlerConfig>): void {
-    ErrorHandler.config = { ...defaultConfig, ...config };
+    ErrorHandler.config = { ...DEFAULT_CONFIG, ...config };
   }
 
   /**
-   * Handle any type of error, converting it to a HarmonyError if needed
+   * Handle any type of error, converting it to a HarmonyError if needed.
+   * Logs the error and shows user feedback based on configuration.
+   * @param error - The error to handle
+   * @param context - Optional context information
    */
   static handle(error: Error | unknown, context?: string): void {
     const harmonyError = ErrorHandler.toHarmonyError(error);
@@ -61,7 +72,11 @@ export class ErrorHandler {
   }
 
   /**
-   * Handle a specific error with a category
+   * Handle a specific error with a category.
+   * Logs the error and shows user feedback based on configuration.
+   * @param error - The error to handle
+   * @param category - The error category
+   * @param context - Optional context information
    */
   static handleWithCategory(error: Error | unknown, category: ErrorCategory, context?: string): void {
     const harmonyError = ErrorHandler.toHarmonyError(error, category);
@@ -78,22 +93,27 @@ export class ErrorHandler {
   }
 
   /**
-   * Convert any error to a HarmonyError
+   * Convert any error to a HarmonyError.
+   * Ensures consistent error handling throughout the application.
+   * @param error - The error to convert
+   * @param category - Optional error category
+   * @returns A HarmonyError instance
+   * @private
    */
   private static toHarmonyError(error: Error | unknown, category?: ErrorCategory): HarmonyError {
     if (error instanceof HarmonyError) {
       return error;
     }
 
-    const defaultCategory = category || ErrorHandler.config.defaultCategory;
     const message = error instanceof Error ? error.message : String(error);
-    const originalError = error instanceof Error ? error : undefined;
-
-    return new HarmonyError(message, defaultCategory, originalError);
+    return new HarmonyError(message, category || ErrorHandler.config.defaultCategory, error instanceof Error ? error : undefined);
   }
 
   /**
-   * Show an error toast to the user
+   * Show an error toast to the user.
+   * Displays user-friendly error information.
+   * @param error - The error to display
+   * @private
    */
   private static showErrorToast(error: HarmonyError): void {
     const title = ErrorHandler.getCategoryTitle(error.category);
@@ -105,43 +125,27 @@ export class ErrorHandler {
   }
 
   /**
-   * Get a user-friendly title for an error category
+   * Get a user-friendly title for an error category.
+   * @param category - The error category
+   * @returns A user-friendly title
+   * @private
    */
   private static getCategoryTitle(category: ErrorCategory): string {
     switch (category) {
       case ErrorCategory.CONNECTION:
-      case ErrorCategory.NETWORK:
-      case ErrorCategory.WEBSOCKET:
         return "Connection Error";
-      case ErrorCategory.DISCOVERY:
-        return "Discovery Error";
-      case ErrorCategory.COMMAND:
-      case ErrorCategory.COMMAND_EXECUTION:
-        return "Command Error";
-      case ErrorCategory.STATE:
-        return "State Error";
-      case ErrorCategory.DATA:
-        return "Data Error";
       case ErrorCategory.HUB_COMMUNICATION:
         return "Hub Communication Error";
-      case ErrorCategory.ACTIVITY_START:
-        return "Activity Start Error";
-      case ErrorCategory.ACTIVITY_STOP:
-        return "Activity Stop Error";
+      case ErrorCategory.COMMAND_EXECUTION:
+        return "Command Execution Error";
+      case ErrorCategory.STATE:
+        return "State Error";
       case ErrorCategory.VALIDATION:
         return "Validation Error";
       case ErrorCategory.STORAGE:
         return "Storage Error";
       case ErrorCategory.CACHE:
         return "Cache Error";
-      case ErrorCategory.QUEUE:
-        return "Queue Error";
-      case ErrorCategory.HARMONY:
-        return "Harmony Error";
-      case ErrorCategory.AUTHENTICATION:
-        return "Authentication Error";
-      case ErrorCategory.SYSTEM:
-        return "System Error";
       default:
         return "Error";
     }
@@ -176,11 +180,26 @@ export class ErrorHandler {
   }
 
   /**
-   * Get recovery actions for an error
+   * Get recovery actions for an error.
+   * Determines appropriate recovery actions based on error category.
+   * @param error - The error to get recovery actions for
+   * @returns Array of recovery actions
+   * @private
    */
-  static getRecoveryActions(error: HarmonyError): ErrorRecoveryAction[] {
-    const strategy = error.getDefaultRecoveryStrategy();
-    return strategy?.actions || [ErrorRecoveryAction.MANUAL];
+  private static getRecoveryActions(error: HarmonyError): ErrorRecoveryAction[] {
+    switch (error.category) {
+      case ErrorCategory.CONNECTION:
+      case ErrorCategory.HUB_COMMUNICATION:
+        return [ErrorRecoveryAction.RETRY, ErrorRecoveryAction.RECONNECT];
+      case ErrorCategory.COMMAND_EXECUTION:
+        return [ErrorRecoveryAction.RETRY];
+      case ErrorCategory.STATE:
+        return [ErrorRecoveryAction.RESET_CONFIG];
+      case ErrorCategory.CACHE:
+        return [ErrorRecoveryAction.CLEAR_CACHE];
+      default:
+        return [ErrorRecoveryAction.RETRY];
+    }
   }
 
   /**

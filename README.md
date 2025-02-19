@@ -47,14 +47,130 @@ The extension will automatically discover Harmony Hubs on your local network.
 - `⌘ + Shift + D`: Switch to Devices view
 - `⌘ + K`: Open command palette for quick actions
 
-## Troubleshooting
+## Configuration Options
 
-If you encounter any issues:
+### Extension Preferences
 
-1. Try refreshing the hub connection (⌘ + R)
-2. Clear the cache (⌘ + Backspace)
-3. Ensure your Harmony Hub is on the same network
-4. Check your network firewall settings
+The following preferences can be configured in the Raycast preferences for the Harmony extension:
+
+#### Command Execution
+- `commandHoldTime` (default: "100"): Duration in milliseconds to hold a command when executing. Increase this value if commands are not being recognized by your devices.
+
+#### Hub Discovery
+- `discoveryTimeout` (default: "5000"): Maximum time in milliseconds to wait for hub discovery. Increase this value if your hubs are not being found on slower networks.
+- `discoveryCompleteDelay` (default: "500"): Time in milliseconds to wait after finding a hub before completing discovery. Helps ensure all hubs are found.
+
+#### Caching
+- `cacheTTL` (default: "86400000"): Time in milliseconds (24 hours) before cached hub data expires. Decrease this value if your hub configuration changes frequently.
+- `maxCacheEntries` (default: "1000"): Maximum number of entries to keep in the log history.
+
+#### Logging
+- `minLogLevel` (default: "INFO"): Minimum level of messages to log. Options: "DEBUG", "INFO", "WARN", "ERROR"
+- `includeTimestamp` (default: true): Whether to include timestamps in log messages
+- `includeLogLevel` (default: true): Whether to include the log level in messages
+- `logToasts` (default: true): Whether to log toast notifications
+
+### Network Requirements
+
+The extension requires the following network conditions:
+- Harmony Hub and computer must be on the same local network
+- UDP port 5222 must be accessible for hub discovery
+- TCP port 8088 must be accessible for hub communication
+- No firewall rules blocking Harmony Hub communication
+
+## Troubleshooting Guide
+
+### Hub Discovery Issues
+
+#### Hub Not Found
+1. Verify the Harmony Hub is powered on and connected to your network
+2. Check that your computer and hub are on the same network
+3. Ensure required ports (5222, 8088) are not blocked by firewall
+4. Try increasing the `discoveryTimeout` preference
+5. Restart the Harmony Hub
+
+#### Multiple Hubs Not Detected
+1. Increase the `discoveryCompleteDelay` preference
+2. Ensure all hubs are powered on and connected
+3. Try discovering hubs one at a time
+4. Clear the hub cache and retry discovery
+
+### Command Execution Issues
+
+#### Commands Not Recognized
+1. Increase the `commandHoldTime` preference
+2. Verify the device is powered on and in range
+3. Check if the command works using the Harmony app
+4. Try clearing the command cache
+5. Re-run hub discovery to refresh device data
+
+#### Delayed Command Response
+1. Check network latency to your hub
+2. Ensure no other apps are controlling the hub
+3. Verify hub firmware is up to date
+4. Try reducing the `commandHoldTime` preference
+
+### Activity Issues
+
+#### Activities Won't Start
+1. Verify all required devices are powered on
+2. Check if activity works in Harmony app
+3. Clear hub cache and retry
+4. Check for device conflicts
+5. Restart the hub if issues persist
+
+#### Activity Status Not Updating
+1. Check network connectivity to hub
+2. Clear the hub cache
+3. Re-run hub discovery
+4. Verify hub firmware is up to date
+
+### Connection Issues
+
+#### Hub Disconnects Frequently
+1. Check network stability
+2. Verify hub power supply
+3. Update hub firmware
+4. Clear hub cache and rediscover
+5. Try moving hub closer to router
+
+#### Cannot Connect to Hub
+1. Verify hub IP address is correct
+2. Check network firewall settings
+3. Ensure hub is not in use by another app
+4. Try restarting the hub
+5. Clear all caches and rediscover
+
+### Cache Issues
+
+#### Incorrect Device Data
+1. Clear the hub cache
+2. Re-run hub discovery
+3. Verify device configuration in Harmony app
+4. Check hub firmware version
+5. Reduce `cacheTTL` if issues persist
+
+#### Performance Issues
+1. Check `maxCacheEntries` setting
+2. Clear old log entries
+3. Verify available system memory
+4. Reduce logging level if needed
+
+### Error Recovery Steps
+
+For any error, the extension will provide:
+1. Error category and description
+2. Recommended recovery actions
+3. Detailed error message in logs
+4. Option to retry the operation
+5. Option to clear cache if relevant
+
+If issues persist:
+1. Set `minLogLevel` to "DEBUG"
+2. Reproduce the issue
+3. Check logs for detailed error information
+4. Try suggested recovery actions
+5. If unresolved, report the issue with logs
 
 ## Development
 

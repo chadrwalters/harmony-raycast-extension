@@ -12,12 +12,12 @@ export interface MutableHarmonyHub {
   id: string;
   name: string;
   ip: string;
-  remoteId?: string;
-  hubId?: string;
-  version?: string;
-  port?: string;
-  productId?: string;
-  protocolVersion?: string;
+  remoteId: string;
+  hubId: string;
+  version: string;
+  port: string;
+  productId: string;
+  protocolVersion: string;
 }
 
 /**

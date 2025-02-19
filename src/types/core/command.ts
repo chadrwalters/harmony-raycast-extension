@@ -3,6 +3,8 @@
  * @module
  */
 
+import { ErrorCategory } from "./harmony";
+
 /**
  * Status of a command in the queue
  * @enum {string}
@@ -82,25 +84,6 @@ export interface CommandResult {
 }
 
 /**
- * Error recovery actions for failed commands
- * @enum {string}
- */
-export enum ErrorRecoveryAction {
-  /** Retry the operation */
-  RETRY = "retry",
-  /** Reconnect to the hub */
-  RECONNECT = "reconnect",
-  /** Clear cache and retry */
-  CLEAR_CACHE = "clear_cache",
-  /** Reset configuration */
-  RESET_CONFIG = "reset_config",
-  /** Restart extension */
-  RESTART = "restart",
-  /** Manual user intervention required */
-  MANUAL = "manual",
-}
-
-/**
  * Retry configuration for error handling
  * @interface RetryConfig
  */
@@ -114,7 +97,7 @@ export interface RetryConfig {
   /** Whether to use exponential backoff */
   readonly useExponentialBackoff: boolean;
   /** Categories to never retry */
-  readonly nonRetryableCategories?: import("./harmony").ErrorCategory[];
+  readonly nonRetryableCategories?: ErrorCategory[];
   /** Maximum total retry duration in milliseconds */
   readonly maxRetryDuration?: number;
 }
@@ -136,25 +119,4 @@ export interface TimeoutConfig {
   readonly discovery: number;
   /** Cache timeout in milliseconds */
   readonly cache: number;
-}
-
-/**
- * Retry context for error handling
- * @interface RetryContext
- */
-export interface RetryContext {
-  /** Number of retry attempts made */
-  readonly attempts: number;
-  /** Time of first attempt */
-  readonly firstAttempt: number;
-  /** Time of last attempt */
-  readonly lastAttempt: number;
-  /** Next scheduled retry time */
-  readonly nextRetry: number | null;
-  /** Whether maximum retries have been reached */
-  readonly maxRetriesReached: boolean;
-  /** Total retry duration in milliseconds */
-  readonly totalDuration: number;
-  /** Success rate of previous attempts */
-  readonly successRate?: number;
 }

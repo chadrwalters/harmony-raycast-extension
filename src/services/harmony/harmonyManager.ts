@@ -12,14 +12,23 @@ import { HarmonyError, ErrorCategory } from "../../types/core/errors";
 import { HarmonyHub } from "../../types/core/harmony";
 import { Logger } from "../logger";
 
-// Constants
-const DISCOVERY_TIMEOUT = 5000; // Reduced from 10s to 5s
-const DISCOVERY_COMPLETE_DELAY = 500; // Wait 500ms after finding a hub before completing
+/** Discovery timeout in milliseconds */
+const DISCOVERY_TIMEOUT = 5000;
+/** Delay after finding a hub before completing discovery */
+const DISCOVERY_COMPLETE_DELAY = 500;
+/** Key for storing hub cache */
 const CACHE_KEY = "harmony-hubs";
-const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+/** Cache time-to-live in milliseconds (24 hours) */
+const CACHE_TTL = 24 * 60 * 60 * 1000;
 
+/**
+ * Interface for cached hub data
+ * @interface CachedHubs
+ */
 interface CachedHubs {
+  /** List of discovered hubs */
   hubs: HarmonyHub[];
+  /** Timestamp when cache was created */
   timestamp: number;
 }
 
@@ -52,18 +61,20 @@ interface HubDiscoveryData {
 }
 
 /**
- * HarmonyManager class handles discovery and caching of Harmony Hubs on the network.
- * Provides methods for finding, validating, and caching hub data.
+ * Manager class for discovering and managing Harmony Hubs.
+ * Handles network discovery, caching, and hub validation.
  */
 export class HarmonyManager {
-  /** Explorer instance for hub discovery */
+  /** Hub discovery explorer instance */
   private explorer: Explorer | null = null;
-  /** Flag indicating if discovery is in progress */
+  /** Whether discovery is currently in progress */
   private isDiscovering = false;
   /** Promise for current discovery operation */
   private discoveryPromise: Promise<HarmonyHub[]> | null = null;
-  /** Timeout for completing discovery */
+  /** Timeout for discovery completion */
   private completeTimeout: NodeJS.Timeout | null = null;
+  /** Map of discovered hubs by IP */
+  private readonly discoveredHubs = new Map<string, HarmonyHub>();
 
   /**
    * Creates a validated HarmonyHub instance from discovery data
@@ -252,9 +263,22 @@ export class HarmonyManager {
   }
 
   /**
-   * Caches discovered hubs in local storage
+   * Performs network discovery of Harmony Hubs.
+   * Uses the Harmony discovery protocol to find hubs on the local network.
+   * @param onProgress - Optional callback for progress updates
+   * @returns Promise resolving to list of discovered hubs
+   * @throws {HarmonyError} If discovery fails
+   * @private
+   */
+  private async discoverHubs(onProgress?: (progress: number, message: string) => void): Promise<HarmonyHub[]> {
+    // ... existing code ...
+  }
+
+  /**
+   * Caches discovered hubs in local storage.
    * @param hubs - List of hubs to cache
    * @throws {HarmonyError} If caching fails
+   * @private
    */
   private async cacheHubs(hubs: HarmonyHub[]): Promise<void> {
     try {
@@ -271,9 +295,10 @@ export class HarmonyManager {
   }
 
   /**
-   * Retrieves cached hubs if available and not expired
+   * Retrieves cached hubs if available and not expired.
    * @returns Promise resolving to cached hubs or null if no valid cache exists
    * @throws {HarmonyError} If reading cache fails
+   * @private
    */
   private async getCachedHubs(): Promise<HarmonyHub[] | null> {
     try {

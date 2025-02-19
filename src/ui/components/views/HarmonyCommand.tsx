@@ -1,3 +1,9 @@
+/**
+ * Main component for the Harmony Control extension.
+ * Manages view state and renders appropriate sub-components.
+ * @module
+ */
+
 import { List, Icon, Action, ActionPanel } from "@raycast/api";
 import React, { useEffect, useRef, useCallback } from "react";
 import { memo } from "react";
@@ -13,12 +19,24 @@ import { CommandsView } from "./CommandsView";
 import { DevicesView } from "./DevicesView";
 import { HubsView } from "./HubsView";
 
+/**
+ * Props for the CommandItem component
+ * @interface CommandItemProps
+ */
 interface CommandItemProps {
+  /** Command to display */
   command: HarmonyCommandType;
+  /** Callback when command is executed */
   onExecute: () => void;
+  /** Optional callback to go back */
   onBack?: () => void;
 }
 
+/**
+ * Component for displaying a single command with actions
+ * @param props - Component props
+ * @returns JSX element
+ */
 function CommandItemImpl({ command, onExecute, onBack }: CommandItemProps): JSX.Element {
   return (
     <List.Item
@@ -41,8 +59,15 @@ function CommandItemImpl({ command, onExecute, onBack }: CommandItemProps): JSX.
   );
 }
 
+/** Memoized version of CommandItem */
 export const CommandItem = memo(CommandItemImpl);
 
+/**
+ * Main component for the Harmony Control extension.
+ * Manages view state and renders the appropriate view component based on current state.
+ * Handles automatic view transitions and hub discovery.
+ * @returns JSX element
+ */
 export function HarmonyCommand(): React.ReactElement {
   const {
     hubs,

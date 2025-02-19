@@ -3,8 +3,10 @@
  * @module
  */
 
-import { ErrorCategory } from "./errors";
 import { Logger } from "../../services/logger";
+
+/** Re-export ErrorCategory for backwards compatibility */
+export { ErrorCategory } from "./errors";
 
 /**
  * Represents a Logitech Harmony Hub device on the network
@@ -108,25 +110,6 @@ export enum HarmonyStage {
 }
 
 /**
- * Recovery actions available for different error types
- * @enum {string}
- */
-export enum ErrorRecoveryAction {
-  /** Retry the failed operation */
-  RETRY = "retry",
-  /** Reconnect to the hub */
-  RECONNECT = "reconnect",
-  /** Clear local cache */
-  CLEAR_CACHE = "clear_cache",
-  /** Reset configuration */
-  RESET_CONFIG = "reset_config",
-  /** Restart the hub */
-  RESTART = "restart",
-  /** Manual intervention required */
-  MANUAL = "manual",
-}
-
-/**
  * Represents the loading state during operations
  * @interface LoadingState
  */
@@ -165,10 +148,10 @@ export interface TimeoutConfig {
  */
 export function isHarmonyHub(obj: unknown): obj is HarmonyHub {
   if (typeof obj !== "object" || obj === null) {
-    Logger.debug("isHarmonyHub validation failed", { 
+    Logger.debug("isHarmonyHub validation failed", {
       reason: "Not an object",
       received: typeof obj,
-      value: obj 
+      value: obj,
     });
     return false;
   }
@@ -183,17 +166,17 @@ export function isHarmonyHub(obj: unknown): obj is HarmonyHub {
     { field: "version", valid: typeof hub.version === "string", value: hub.version },
     { field: "port", valid: typeof hub.port === "string", value: hub.port },
     { field: "productId", valid: typeof hub.productId === "string", value: hub.productId },
-    { field: "protocolVersion", valid: typeof hub.protocolVersion === "string", value: hub.protocolVersion }
+    { field: "protocolVersion", valid: typeof hub.protocolVersion === "string", value: hub.protocolVersion },
   ];
 
-  const failures = validations.filter(v => !v.valid);
+  const failures = validations.filter((v) => !v.valid);
   if (failures.length > 0) {
     Logger.debug("isHarmonyHub validation failed", {
-      failures: failures.map(f => ({
+      failures: failures.map((f) => ({
         field: f.field,
         receivedType: typeof f.value,
-        receivedValue: f.value
-      }))
+        receivedValue: f.value,
+      })),
     });
     return false;
   }
@@ -212,7 +195,7 @@ export function isHarmonyDevice(obj: unknown): obj is HarmonyDevice {
     Logger.debug("isHarmonyDevice validation failed", {
       reason: "Not an object",
       received: typeof obj,
-      value: obj
+      value: obj,
     });
     return false;
   }
@@ -222,36 +205,38 @@ export function isHarmonyDevice(obj: unknown): obj is HarmonyDevice {
     { field: "id", valid: typeof device.id === "string" && device.id.length > 0, value: device.id },
     { field: "name", valid: typeof device.name === "string" && device.name.length > 0, value: device.name },
     { field: "type", valid: typeof device.type === "string" && device.type.length > 0, value: device.type },
-    { field: "commands", valid: Array.isArray(device.commands), value: device.commands }
+    { field: "commands", valid: Array.isArray(device.commands), value: device.commands },
   ];
 
-  const failures = validations.filter(v => !v.valid);
+  const failures = validations.filter((v) => !v.valid);
   if (failures.length > 0) {
     Logger.debug("isHarmonyDevice validation failed", {
-      failures: failures.map(f => ({
+      failures: failures.map((f) => ({
         field: f.field,
         receivedType: typeof f.value,
-        receivedValue: f.value
-      }))
+        receivedValue: f.value,
+      })),
     });
     return false;
   }
 
   // Validate each command
   if (device.commands) {
-    const invalidCommands = device.commands.map((cmd, index) => ({
-      index,
-      command: cmd,
-      valid: isHarmonyCommand(cmd)
-    })).filter(result => !result.valid);
+    const invalidCommands = device.commands
+      .map((cmd, index) => ({
+        index,
+        command: cmd,
+        valid: isHarmonyCommand(cmd),
+      }))
+      .filter((result) => !result.valid);
 
     if (invalidCommands.length > 0) {
       Logger.debug("isHarmonyDevice validation failed", {
         reason: "Invalid commands",
-        invalidCommands: invalidCommands.map(ic => ({
+        invalidCommands: invalidCommands.map((ic) => ({
           index: ic.index,
-          command: ic.command
-        }))
+          command: ic.command,
+        })),
       });
       return false;
     }
@@ -271,7 +256,7 @@ export function isHarmonyCommand(obj: unknown): obj is HarmonyCommand {
     Logger.debug("isHarmonyCommand validation failed", {
       reason: "Not an object",
       received: typeof obj,
-      value: obj
+      value: obj,
     });
     return false;
   }
@@ -281,17 +266,21 @@ export function isHarmonyCommand(obj: unknown): obj is HarmonyCommand {
     { field: "id", valid: typeof command.id === "string" && command.id.length > 0, value: command.id },
     { field: "name", valid: typeof command.name === "string" && command.name.length > 0, value: command.name },
     { field: "label", valid: typeof command.label === "string" && command.label.length > 0, value: command.label },
-    { field: "deviceId", valid: typeof command.deviceId === "string" && command.deviceId.length > 0, value: command.deviceId }
+    {
+      field: "deviceId",
+      valid: typeof command.deviceId === "string" && command.deviceId.length > 0,
+      value: command.deviceId,
+    },
   ];
 
-  const failures = validations.filter(v => !v.valid);
+  const failures = validations.filter((v) => !v.valid);
   if (failures.length > 0) {
     Logger.debug("isHarmonyCommand validation failed", {
-      failures: failures.map(f => ({
+      failures: failures.map((f) => ({
         field: f.field,
         receivedType: typeof f.value,
-        receivedValue: f.value
-      }))
+        receivedValue: f.value,
+      })),
     });
     return false;
   }
@@ -301,7 +290,7 @@ export function isHarmonyCommand(obj: unknown): obj is HarmonyCommand {
     Logger.debug("isHarmonyCommand validation failed", {
       reason: "Invalid group type",
       receivedType: typeof command.group,
-      receivedValue: command.group
+      receivedValue: command.group,
     });
     return false;
   }
@@ -320,7 +309,7 @@ export function isHarmonyActivity(obj: unknown): obj is HarmonyActivity {
     Logger.debug("isHarmonyActivity validation failed", {
       reason: "Not an object",
       received: typeof obj,
-      value: obj
+      value: obj,
     });
     return false;
   }
@@ -330,17 +319,17 @@ export function isHarmonyActivity(obj: unknown): obj is HarmonyActivity {
     { field: "id", valid: typeof activity.id === "string" && activity.id.length > 0, value: activity.id },
     { field: "name", valid: typeof activity.name === "string" && activity.name.length > 0, value: activity.name },
     { field: "type", valid: typeof activity.type === "string" && activity.type.length > 0, value: activity.type },
-    { field: "isCurrent", valid: typeof activity.isCurrent === "boolean", value: activity.isCurrent }
+    { field: "isCurrent", valid: typeof activity.isCurrent === "boolean", value: activity.isCurrent },
   ];
 
-  const failures = validations.filter(v => !v.valid);
+  const failures = validations.filter((v) => !v.valid);
   if (failures.length > 0) {
     Logger.debug("isHarmonyActivity validation failed", {
-      failures: failures.map(f => ({
+      failures: failures.map((f) => ({
         field: f.field,
         receivedType: typeof f.value,
-        receivedValue: f.value
-      }))
+        receivedValue: f.value,
+      })),
     });
     return false;
   }
@@ -445,6 +434,3 @@ export type MessageHandler = (message: HarmonyMessage) => void;
  * Hub discovery handler type
  */
 export type HubDiscoveryHandler = (hub: HarmonyHub) => void;
-
-/** Re-export ErrorCategory for backwards compatibility */
-export { ErrorCategory } from "./errors";

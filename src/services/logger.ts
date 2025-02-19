@@ -1,168 +1,174 @@
 /**
- * Logging service for the Harmony Hub integration
- * Provides structured logging with different severity levels
+ * Logging service for Harmony Hub integration.
+ * Provides structured logging with levels, history, and formatting.
  * @module
  */
 
-import { environment } from "@raycast/api";
-
-/**
- * Log levels in order of increasing severity
- */
-export enum LogLevel {
-  /** Detailed debugging information */
-  DEBUG = "DEBUG",
-  /** General information about program execution */
-  INFO = "INFO",
-  /** Potentially harmful situations */
-  WARN = "WARN",
-  /** Error events that might still allow the program to continue */
-  ERROR = "ERROR",
-  /** Very severe error events that will likely lead to program termination */
-  FATAL = "FATAL",
-}
-
-/**
- * Configuration options for the logger
- */
-interface LoggerConfig {
-  /** Minimum level of messages to log */
-  minLevel: LogLevel;
-  /** Whether to include timestamps in log messages */
-  includeTimestamp: boolean;
-  /** Whether to include the log level in messages */
-  includeLevel: boolean;
-  /** Whether to pretty print objects in log messages */
-  prettyPrint: boolean;
-}
+import { LogLevel, LogEntry, LoggerOptions, ILogger } from "../types/core/logging";
 
 /**
  * Default logger configuration
  */
-const DEFAULT_CONFIG: LoggerConfig = {
-  minLevel: environment.isDevelopment ? LogLevel.DEBUG : LogLevel.INFO,
+const DEFAULT_OPTIONS: LoggerOptions = {
+  minLevel: LogLevel.INFO,
+  maxEntries: 1000,
   includeTimestamp: true,
   includeLevel: true,
-  prettyPrint: true,
 };
 
 /**
- * Logger service for structured logging
- * Supports multiple log levels and configurable output formatting
+ * Service for structured logging in the Harmony extension.
+ * Supports multiple log levels, history tracking, and configurable formatting.
  */
-export class Logger {
-  private static config: LoggerConfig = DEFAULT_CONFIG;
+export class Logger implements ILogger {
+  /** Current logger configuration */
+  private static options: LoggerOptions = DEFAULT_OPTIONS;
+  /** Log history */
+  private static history: LogEntry[] = [];
 
   /**
-   * Configures the logger
-   * @param config - Configuration options to apply
+   * Configure the logger.
+   * Updates logger settings while preserving existing log history.
+   * @param options - New logger options
    */
-  public static configure(config: Partial<LoggerConfig>): void {
-    Logger.config = { ...DEFAULT_CONFIG, ...config };
+  static configure(options: Partial<LoggerOptions>): void {
+    Logger.options = { ...DEFAULT_OPTIONS, ...options };
   }
 
   /**
-   * Logs a debug message
-   * @param message - The message to log
-   * @param context - Optional context object to include
+   * Log a debug message.
+   * Only logs if minimum level is DEBUG.
+   * @param message - Message to log
+   * @param data - Optional data to include
    */
-  public static debug(message: string, context?: unknown): void {
-    Logger.log(LogLevel.DEBUG, message, context);
+  static debug(message: string, data?: unknown): void {
+    Logger.log(LogLevel.DEBUG, message, data);
   }
 
   /**
-   * Logs an info message
-   * @param message - The message to log
-   * @param context - Optional context object to include
+   * Log an info message.
+   * Only logs if minimum level is INFO or lower.
+   * @param message - Message to log
+   * @param data - Optional data to include
    */
-  public static info(message: string, context?: unknown): void {
-    Logger.log(LogLevel.INFO, message, context);
+  static info(message: string, data?: unknown): void {
+    Logger.log(LogLevel.INFO, message, data);
   }
 
   /**
-   * Logs a warning message
-   * @param message - The message to log
-   * @param context - Optional context object to include
+   * Log a warning message.
+   * Only logs if minimum level is WARN or lower.
+   * @param message - Message to log
+   * @param data - Optional data to include
    */
-  public static warn(message: string, context?: unknown): void {
-    Logger.log(LogLevel.WARN, message, context);
+  static warn(message: string, data?: unknown): void {
+    Logger.log(LogLevel.WARN, message, data);
   }
 
   /**
-   * Logs an error message
-   * @param message - The message to log
-   * @param context - Optional context object to include
+   * Log an error message.
+   * Only logs if minimum level is ERROR or lower.
+   * @param message - Message to log
+   * @param data - Optional data to include
    */
-  public static error(message: string, context?: unknown): void {
-    Logger.log(LogLevel.ERROR, message, context);
+  static error(message: string, data?: unknown): void {
+    Logger.log(LogLevel.ERROR, message, data);
   }
 
   /**
-   * Logs a fatal error message
-   * @param message - The message to log
-   * @param context - Optional context object to include
+   * Log an error with full stack trace.
+   * Includes error details and optional context.
+   * @param error - Error to log
+   * @param context - Optional context information
    */
-  public static fatal(message: string, context?: unknown): void {
-    Logger.log(LogLevel.FATAL, message, context);
+  static logError(error: Error, context?: string): void {
+    const message = context ? `${context}: ${error.message}` : error.message;
+    Logger.error(message, {
+      name: error.name,
+      stack: error.stack,
+      context,
+    });
   }
 
   /**
-   * Internal method to format and output log messages
-   * @param level - The severity level of the message
-   * @param message - The message to log
-   * @param context - Optional context object to include
+   * Get the current log history.
+   * Returns a copy of the log entries.
+   * @returns Array of log entries
    */
-  private static log(level: LogLevel, message: string, context?: unknown): void {
-    if (Logger.shouldLog(level)) {
-      const parts: string[] = [];
+  static getHistory(): LogEntry[] {
+    return [...Logger.history];
+  }
 
-      if (Logger.config.includeTimestamp) {
-        parts.push(new Date().toISOString());
-      }
+  /**
+   * Clear the log history.
+   * Removes all stored log entries.
+   */
+  static clearHistory(): void {
+    Logger.history = [];
+  }
 
-      if (Logger.config.includeLevel) {
-        parts.push(`[${level}]`);
-      }
+  /**
+   * Set the minimum log level.
+   * Updates which messages will be logged.
+   * @param level - New minimum log level
+   */
+  static setMinLevel(level: LogLevel): void {
+    Logger.options.minLevel = level;
+  }
 
-      parts.push(message);
+  /**
+   * Internal method to create a log entry.
+   * Formats and stores the log entry based on configuration.
+   * @param level - Log level
+   * @param message - Log message
+   * @param data - Optional data to include
+   * @private
+   */
+  private static log(level: LogLevel, message: string, data?: unknown): void {
+    if (level < (Logger.options.minLevel ?? LogLevel.INFO)) {
+      return;
+    }
 
-      if (context !== undefined) {
-        const contextStr = Logger.config.prettyPrint
-          ? JSON.stringify(context, null, 2)
-          : JSON.stringify(context);
-        parts.push(contextStr);
-      }
+    const entry: LogEntry = {
+      timestamp: new Date().toISOString(),
+      level,
+      message,
+      data,
+    };
 
-      const logMessage = parts.join(" ");
+    Logger.history.push(entry);
 
-      switch (level) {
-        case LogLevel.DEBUG:
-          console.debug(logMessage);
-          break;
-        case LogLevel.INFO:
-          console.info(logMessage);
-          break;
-        case LogLevel.WARN:
-          console.warn(logMessage);
-          break;
-        case LogLevel.ERROR:
-        case LogLevel.FATAL:
-          console.error(logMessage);
-          break;
-      }
+    // Trim history if it exceeds max entries
+    if (Logger.options.maxEntries && Logger.history.length > Logger.options.maxEntries) {
+      Logger.history = Logger.history.slice(-Logger.options.maxEntries);
+    }
+
+    // Log to console in development
+    if (process.env.NODE_ENV === "development") {
+      const prefix = Logger.formatPrefix(entry);
+      console.log(prefix, message, data ? data : "");
     }
   }
 
   /**
-   * Checks if a message at the given level should be logged
-   * @param level - The severity level to check
-   * @returns True if the message should be logged
+   * Format the prefix for a log entry.
+   * Includes timestamp and level based on configuration.
+   * @param entry - Log entry to format
+   * @returns Formatted prefix string
+   * @private
    */
-  private static shouldLog(level: LogLevel): boolean {
-    const levels = Object.values(LogLevel);
-    const minLevelIndex = levels.indexOf(Logger.config.minLevel);
-    const currentLevelIndex = levels.indexOf(level);
-    return currentLevelIndex >= minLevelIndex;
+  private static formatPrefix(entry: LogEntry): string {
+    const parts: string[] = [];
+
+    if (Logger.options.includeTimestamp) {
+      parts.push(entry.timestamp);
+    }
+
+    if (Logger.options.includeLevel) {
+      parts.push(`[${LogLevel[entry.level]}]`);
+    }
+
+    return parts.join(" ");
   }
 }
 

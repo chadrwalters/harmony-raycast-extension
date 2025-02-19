@@ -1,14 +1,33 @@
+/**
+ * View component for displaying and managing Harmony devices.
+ * Shows devices grouped by type with available commands.
+ * @module
+ */
+
 import { List, Icon, Action, ActionPanel } from "@raycast/api";
 import { memo, useMemo } from "react";
 
 import { useHarmony } from "../../../hooks/useHarmony";
 import { HarmonyDevice } from "../../../types/core/harmony";
 
+/**
+ * Props for the DevicesView component
+ * @interface DevicesViewProps
+ */
 interface DevicesViewProps {
+  /** Callback when a device is selected */
   onDeviceSelect: (device: HarmonyDevice) => void;
+  /** Optional callback to go back */
   onBack?: () => void;
 }
 
+/**
+ * Component for displaying and managing Harmony devices.
+ * Groups devices by type and shows available commands.
+ * Provides actions for selecting devices and viewing commands.
+ * @param props - Component props
+ * @returns JSX element
+ */
 function DevicesViewImpl({ onDeviceSelect, onBack }: DevicesViewProps): JSX.Element {
   const { devices, refresh, clearCache } = useHarmony();
 
