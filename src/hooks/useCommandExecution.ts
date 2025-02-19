@@ -56,7 +56,7 @@ interface CommandExecutionResult {
  */
 export function useCommandExecution(): CommandExecutionResult {
   const { executeCommand } = useHarmony();
-  const [state, setState] = useState<CommandExecutionState>({
+  const [state] = useState<CommandExecutionState>({
     isExecuting: false,
     lastCommand: null,
     error: null,

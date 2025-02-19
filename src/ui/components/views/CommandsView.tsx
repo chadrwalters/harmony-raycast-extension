@@ -1,9 +1,9 @@
 import { List, Icon, Action, ActionPanel } from "@raycast/api";
 import { memo, useMemo } from "react";
-import { useHarmony } from "../../../hooks/useHarmony";
+
 import { useCommandExecution } from "../../../hooks/useCommandExecution";
-import { HarmonyCommand, HarmonyStage } from "../../../types/core/harmony";
-import { LoadingView } from "../LoadingView";
+import { useHarmony } from "../../../hooks/useHarmony";
+import { HarmonyCommand } from "../../../types/core/harmony";
 
 interface CommandsViewProps {
   commands: HarmonyCommand[];
@@ -34,26 +34,29 @@ function CommandsViewImpl({ commands, onBack }: CommandsViewProps): JSX.Element 
   }, [commands]);
 
   // Memoize command list items
-  const renderCommandItem = useMemo(() => (command: HarmonyCommand) => (
-    <List.Item
-      key={command.id}
-      title={command.label}
-      subtitle={command.name}
-      icon={Icon.Terminal}
-      actions={
-        <ActionPanel>
-          <ActionPanel.Section>
-            <Action title="Execute Command" icon={Icon.Terminal} onAction={() => execute(command)} />
-          </ActionPanel.Section>
-          <ActionPanel.Section>
-            {refresh && <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} />}
-            {clearCache && <Action title="Clear Cache" icon={Icon.Trash} onAction={clearCache} />}
-            {onBack && <Action title="Back" icon={Icon.ArrowLeft} onAction={onBack} />}
-          </ActionPanel.Section>
-        </ActionPanel>
-      }
-    />
-  ), [execute, refresh, clearCache, onBack]);
+  const renderCommandItem = useMemo(
+    () => (command: HarmonyCommand) => (
+      <List.Item
+        key={command.id}
+        title={command.label}
+        subtitle={command.name}
+        icon={Icon.Terminal}
+        actions={
+          <ActionPanel>
+            <ActionPanel.Section>
+              <Action title="Execute Command" icon={Icon.Terminal} onAction={() => execute(command)} />
+            </ActionPanel.Section>
+            <ActionPanel.Section>
+              {refresh && <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} />}
+              {clearCache && <Action title="Clear Cache" icon={Icon.Trash} onAction={clearCache} />}
+              {onBack && <Action title="Back" icon={Icon.ArrowLeft} onAction={onBack} />}
+            </ActionPanel.Section>
+          </ActionPanel>
+        }
+      />
+    ),
+    [execute, refresh, clearCache, onBack],
+  );
 
   return (
     <List

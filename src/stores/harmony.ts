@@ -7,6 +7,7 @@ import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 
 import { ErrorHandler } from "../services/errorHandler";
+import { HarmonyClient } from "../services/harmony/harmonyClient";
 import { LocalStorage } from "../services/localStorage";
 import { error, info } from "../services/logger";
 import { ToastManager } from "../services/toast";
@@ -27,7 +28,6 @@ import {
   toMutableActivity,
   toMutableLoadingState,
 } from "../types/core/state-mutable";
-import { HarmonyClient } from "../services/harmony/harmonyClient";
 
 /**
  * Actions that can be performed on the store

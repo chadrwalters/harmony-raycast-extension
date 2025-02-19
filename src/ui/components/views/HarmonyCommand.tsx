@@ -69,19 +69,7 @@ export const CommandItem = memo(CommandItemImpl);
  * @returns JSX element
  */
 export function HarmonyCommand(): React.ReactElement {
-  const {
-    hubs,
-    selectedHub,
-    devices,
-    activities,
-    currentActivity,
-    loadingState,
-    error,
-    connect,
-    refresh,
-    executeCommand,
-    startActivity,
-  } = useHarmony();
+  const { hubs, selectedHub, devices, activities, loadingState, error, connect, refresh, startActivity } = useHarmony();
 
   const currentView = useViewStore((state) => state.currentView);
   const selectedDevice = useViewStore((state) => state.selectedDevice);
@@ -180,27 +168,20 @@ export function HarmonyCommand(): React.ReactElement {
   debug("Rendering view", { currentView });
 
   // Memoize view components to prevent unnecessary rerenders
-  const viewComponents = useMemo(() => ({
-    [View.HUBS]: <HubsView onHubSelect={connect} />,
-    [View.DEVICES]: <DevicesView onDeviceSelect={handleDeviceSelect} />,
-    [View.DEVICE_DETAIL]: selectedDevice ? (
-      <CommandsView
-        commands={selectedDevice.commands}
-        onBack={() => viewStore.changeView(View.DEVICES)}
-      />
-    ) : (
-      <DevicesView onDeviceSelect={handleDeviceSelect} />
-    ),
-    [View.ACTIVITIES]: (
-      <ActivitiesView onActivitySelect={handleActivitySelect} />
-    ),
-  } as Record<View, React.ReactElement>), [
-    connect,
-    handleDeviceSelect,
-    handleActivitySelect,
-    selectedDevice,
-    viewStore,
-  ]);
+  const viewComponents = useMemo(
+    () =>
+      ({
+        [View.HUBS]: <HubsView onHubSelect={connect} />,
+        [View.DEVICES]: <DevicesView onDeviceSelect={handleDeviceSelect} />,
+        [View.DEVICE_DETAIL]: selectedDevice ? (
+          <CommandsView commands={selectedDevice.commands} onBack={() => viewStore.changeView(View.DEVICES)} />
+        ) : (
+          <DevicesView onDeviceSelect={handleDeviceSelect} />
+        ),
+        [View.ACTIVITIES]: <ActivitiesView onActivitySelect={handleActivitySelect} />,
+      }) as Record<View, React.ReactElement>,
+    [connect, handleDeviceSelect, handleActivitySelect, selectedDevice, viewStore],
+  );
 
   // Return the appropriate view component
   return viewComponents[currentView] || viewComponents[View.HUBS];

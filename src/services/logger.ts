@@ -206,14 +206,4 @@ export type LoggerType = typeof LoggerImpl;
 export const Logger = LoggerImpl;
 
 // Export the logger instance methods for convenience
-export const {
-  debug,
-  info,
-  warn,
-  error,
-  logError,
-  getHistory,
-  clearHistory,
-  setMinLevel,
-  configure,
-} = logger;
+export const { debug, info, warn, error, logError, getHistory, clearHistory, setMinLevel, configure } = logger;

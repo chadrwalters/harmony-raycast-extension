@@ -30,4 +30,4 @@ export interface Preferences {
   includeLogLevel: boolean;
   /** Whether to log toast notifications */
   logToasts: boolean;
-} 
+}

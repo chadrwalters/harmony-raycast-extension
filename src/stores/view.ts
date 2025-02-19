@@ -20,6 +20,36 @@ import { toMutableDevice, toMutableActivity } from "../utils/state";
 type ViewStore = MutableViewState & ViewActions;
 
 /**
+ * Create a debounced function
+ * @param fn Function to debounce
+ * @param delay Delay in milliseconds
+ */
+function debounce(fn: (state: ViewStore) => void, delay: number): (state: ViewStore) => void {
+  let timeoutId: NodeJS.Timeout;
+  return (state: ViewStore) => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    timeoutId = setTimeout(() => {
+      fn(state);
+    }, delay);
+  };
+}
+
+// Create debounced save function
+const debouncedSave = debounce(async (state: ViewStore) => {
+  try {
+    const persistedState = {
+      filters: state.filters,
+    };
+    await LocalStorage.setItem("harmony-view-state", JSON.stringify({ state: persistedState, version: 1 }));
+    debug("Saved view state");
+  } catch (err) {
+    error("Failed to save view state", err);
+  }
+}, 1000);
+
+/**
  * Create the view store with Zustand and Immer
  */
 export const useViewStore = create<ViewStore>()(
@@ -41,19 +71,6 @@ export const useViewStore = create<ViewStore>()(
         }
       } catch (err) {
         error("Failed to load persisted view state", err);
-      }
-    };
-
-    // Save state changes
-    const saveState = async (state: ViewStore): Promise<void> => {
-      try {
-        const persistedState = {
-          filters: state.filters,
-        };
-        await LocalStorage.setItem("harmony-view-state", JSON.stringify({ state: persistedState, version: 1 }));
-        info("Saved view state");
-      } catch (err) {
-        error("Failed to save view state", err);
       }
     };
 
@@ -101,7 +118,7 @@ export const useViewStore = create<ViewStore>()(
             showFavorites: false,
           };
         });
-        saveState(get());
+        debouncedSave(get());
       },
 
       selectDevice: (device: HarmonyDevice) => {
@@ -110,7 +127,7 @@ export const useViewStore = create<ViewStore>()(
           state.selectedDevice = toMutableDevice(device);
           state.currentView = View.DEVICE_DETAIL;
         });
-        saveState(get());
+        debouncedSave(get());
       },
 
       selectActivity: (activity: HarmonyActivity) => {
@@ -118,7 +135,7 @@ export const useViewStore = create<ViewStore>()(
           state.selectedActivity = toMutableActivity(activity);
           state.currentView = View.ACTIVITY_DETAIL;
         });
-        saveState(get());
+        debouncedSave(get());
       },
 
       clearSelection: () => {
@@ -131,7 +148,7 @@ export const useViewStore = create<ViewStore>()(
             state.selectedActivity = null;
           }
         });
-        saveState(get());
+        debouncedSave(get());
       },
 
       setSearch: (query: string) => {
@@ -147,7 +164,7 @@ export const useViewStore = create<ViewStore>()(
             ...filters,
           };
         });
-        saveState(get());
+        debouncedSave(get());
       },
     };
   }),

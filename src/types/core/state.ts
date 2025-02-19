@@ -67,5 +67,5 @@ export interface HarmonyState {
   /** Current loading state */
   readonly loadingState: LoadingState;
   /** Active client for hub communication */
-  readonly client: any | null;
+  readonly client: unknown | null;
 }
