@@ -5,7 +5,7 @@
  */
 
 import { List, Icon, Action, ActionPanel } from "@raycast/api";
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useRef, useCallback, useMemo } from "react";
 import { memo } from "react";
 
 import { useHarmony } from "../../../hooks/useHarmony";
@@ -88,7 +88,7 @@ export function HarmonyCommand(): React.ReactElement {
   const isMounted = useRef(false);
   const viewStore = useViewStore();
 
-  // Start hub discovery on mount
+  // Start hub discovery only on initial mount
   useEffect(() => {
     if (!isMounted.current) {
       info("HarmonyCommand mounted, starting refresh");
@@ -97,7 +97,7 @@ export function HarmonyCommand(): React.ReactElement {
     }
   }, [refresh]);
 
-  // Log state changes
+  // Log state changes for debugging
   useEffect(() => {
     debug("State updated", {
       currentView,
@@ -112,86 +112,96 @@ export function HarmonyCommand(): React.ReactElement {
 
   // Handle view transitions based on state
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
     // If we have a selected hub but no devices are showing, switch to hubs view
     if (!selectedHub && currentView !== View.HUBS) {
       info("No hub selected, switching to hubs view");
-      viewStore.changeView(View.HUBS);
-      return;
+      timeoutId = setTimeout(() => {
+        viewStore.changeView(View.HUBS);
+      }, 0);
+    }
+    // If we have a selected hub and devices, switch from hubs view
+    else if (selectedHub && devices.length > 0 && currentView === View.HUBS) {
+      info("Hub selected with devices, switching from hubs view");
+      timeoutId = setTimeout(() => {
+        viewStore.changeView(View.DEVICES);
+      }, 0);
     }
 
-    // If we have a selected hub and devices, switch from hubs view
-    if (selectedHub && devices.length > 0 && currentView === View.HUBS) {
-      info("Hub selected with devices, switching from hubs view");
-      viewStore.changeView(View.DEVICES); // The view store will handle the preference
-    }
+    // Cleanup timeout on unmount or deps change
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [selectedHub, devices.length, currentView, viewStore]);
 
   // Handle device detail view transitions
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
     if (currentView === View.DEVICE_DETAIL && !selectedDevice) {
       info("No device selected, switching to devices view");
-      viewStore.changeView(View.DEVICES);
+      timeoutId = setTimeout(() => {
+        viewStore.changeView(View.DEVICES);
+      }, 0);
     }
+
+    // Cleanup timeout on unmount or deps change
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [currentView, selectedDevice, viewStore]);
 
-  // Handle device selection
+  // Memoize device selection handler
   const handleDeviceSelect = useCallback(
     (device: HarmonyDevice) => {
       debug("Device selected", { device: device.name });
-      viewStore.selectDevice(device);
+      setTimeout(() => {
+        viewStore.selectDevice(device);
+      }, 0);
     },
     [viewStore],
+  );
+
+  // Memoize activity selection handler
+  const handleActivitySelect = useCallback(
+    (activity: HarmonyActivity) => {
+      debug("Activity selected", { activity: activity.name });
+      startActivity(activity.id);
+    },
+    [startActivity],
   );
 
   // Handle view rendering based on current view state
   debug("Rendering view", { currentView });
 
-  switch (currentView) {
-    case View.HUBS:
-      info("Rendering HubsView", {
-        hubCount: hubs.length,
-        selectedHub: selectedHub?.name,
-        loadingState: loadingState?.stage,
-      });
-      return <HubsView onHubSelect={connect} />;
+  // Memoize view components to prevent unnecessary rerenders
+  const viewComponents = useMemo(() => ({
+    [View.HUBS]: <HubsView onHubSelect={connect} />,
+    [View.DEVICES]: <DevicesView onDeviceSelect={handleDeviceSelect} />,
+    [View.DEVICE_DETAIL]: selectedDevice ? (
+      <CommandsView
+        commands={selectedDevice.commands}
+        onBack={() => viewStore.changeView(View.DEVICES)}
+      />
+    ) : (
+      <DevicesView onDeviceSelect={handleDeviceSelect} />
+    ),
+    [View.ACTIVITIES]: (
+      <ActivitiesView onActivitySelect={handleActivitySelect} />
+    ),
+  } as Record<View, React.ReactElement>), [
+    connect,
+    handleDeviceSelect,
+    handleActivitySelect,
+    selectedDevice,
+    viewStore,
+  ]);
 
-    case View.DEVICES:
-      info("Rendering DevicesView", {
-        deviceCount: devices.length,
-        loadingState: loadingState?.stage,
-      });
-      return <DevicesView onDeviceSelect={handleDeviceSelect} />;
-
-    case View.DEVICE_DETAIL:
-      if (!selectedDevice) {
-        return <DevicesView onDeviceSelect={handleDeviceSelect} />;
-      }
-      info("Rendering CommandsView", {
-        device: selectedDevice.name,
-        commandCount: selectedDevice.commands.length,
-      });
-      return (
-        <CommandsView
-          commands={selectedDevice.commands}
-          onExecuteCommand={executeCommand}
-          onBack={() => viewStore.changeView(View.DEVICES)}
-        />
-      );
-
-    case View.ACTIVITIES:
-      info("Rendering ActivitiesView", {
-        activityCount: activities.length,
-        currentActivity: currentActivity?.name,
-        loadingState: loadingState?.stage,
-      });
-      return <ActivitiesView onActivitySelect={(activity: HarmonyActivity) => startActivity(activity.id)} />;
-
-    default:
-      info("Rendering default HubsView", {
-        hubCount: hubs.length,
-        selectedHub: selectedHub?.name,
-        loadingState: loadingState?.stage,
-      });
-      return <HubsView onHubSelect={connect} />;
-  }
+  // Return the appropriate view component
+  return viewComponents[currentView] || viewComponents[View.HUBS];
 }

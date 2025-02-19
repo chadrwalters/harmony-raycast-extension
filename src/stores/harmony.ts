@@ -27,6 +27,7 @@ import {
   toMutableActivity,
   toMutableLoadingState,
 } from "../types/core/state-mutable";
+import { HarmonyClient } from "../services/harmony/harmonyClient";
 
 /**
  * Actions that can be performed on the store
@@ -306,23 +307,9 @@ export const useHarmonyStore = create<HarmonyStore>()(
             throw new HarmonyError("No hub selected", ErrorCategory.STATE);
           }
 
-          set((state) => {
-            state.loadingState = toMutableLoadingState({
-              stage: HarmonyStage.EXECUTING_COMMAND,
-              progress: 0,
-              message: `Executing command: ${command.label}`,
-            });
-          });
-
-          // TODO: Implement command execution
-
-          set((state) => {
-            state.loadingState = toMutableLoadingState({
-              stage: HarmonyStage.CONNECTED,
-              progress: 1,
-              message: `Executed command: ${command.label}`,
-            });
-          });
+          const client = await HarmonyClient.getClient(selectedHub);
+          await client.executeCommand(command);
+          ToastManager.success(`Executed ${command.label}`);
         } catch (error) {
           const harmonyError =
             error instanceof HarmonyError
@@ -332,7 +319,7 @@ export const useHarmonyStore = create<HarmonyStore>()(
                   ErrorCategory.COMMAND,
                   error instanceof Error ? error : undefined,
                 );
-          ErrorHandler.handle(harmonyError, "Command execution failed");
+          ToastManager.error(`Failed to execute ${command.label}`, harmonyError.message);
           set((state) => {
             state.error = harmonyError;
           });
