@@ -4,25 +4,36 @@
  * @module
  */
 
-import React, { useCallback, useState, createContext, useContext, useRef } from "react";
 import { getPreferenceValues } from "@raycast/api";
+import React, { useCallback, useState, createContext, useContext, useRef } from "react";
 
 import { HarmonyClient } from "../services/harmony/harmonyClient";
 import { HarmonyManager } from "../services/harmony/harmonyManager";
 import { debug, error, info } from "../services/logger";
 import { HarmonyError, ErrorCategory } from "../types/core/errors";
-import {
-  HarmonyHub,
-  HarmonyDevice,
-  HarmonyActivity,
-  HarmonyCommand,
-  LoadingState,
-} from "../types/core/harmony";
-import { HarmonyStage, HarmonyState } from "../types/core/state";
+import { HarmonyHub, HarmonyDevice, HarmonyActivity, HarmonyCommand, LoadingState } from "../types/core/harmony";
 import { Preferences } from "../types/core/preferences";
+import { HarmonyStage, HarmonyState } from "../types/core/state";
 
 // Create a single manager instance
 const manager = new HarmonyManager();
+
+// Add state cache interfaces
+interface CachedHubData {
+  devices: HarmonyDevice[];
+  activities: HarmonyActivity[];
+  currentActivity: HarmonyActivity | null;
+  timestamp: number;
+}
+
+// Add state cache at module level
+const hubDataCache = new Map<string, CachedHubData>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Update state interface to include proper client type
+interface HarmonyStateWithClient extends Omit<HarmonyState, 'client'> {
+  client: HarmonyClient | null;
+}
 
 /**
  * Core state and operations for Harmony Hub integration.
@@ -91,7 +102,7 @@ export const HarmonyProvider: React.FC<HarmonyProviderProps> = ({ children }) =>
  */
 function useHarmonyState(): HarmonyContextState {
   const preferences = getPreferenceValues<Preferences>();
-  const [state, setState] = useState<HarmonyState>({
+  const [state, setState] = useState<HarmonyStateWithClient>({
     hubs: [],
     selectedHub: null,
     devices: [],
@@ -108,6 +119,29 @@ function useHarmonyState(): HarmonyContextState {
 
   // Use ref to track if discovery is in progress
   const isDiscovering = useRef(false);
+
+  // Add function to check if cached data is valid
+  const isCacheValid = useCallback((hubId: string) => {
+    const cached = hubDataCache.get(hubId);
+    if (!cached) return false;
+    return Date.now() - cached.timestamp < CACHE_TTL;
+  }, []);
+
+  // Add function to update cache
+  const updateCache = useCallback((hubId: string, data: Partial<CachedHubData>) => {
+    const existing = hubDataCache.get(hubId) || {
+      devices: [],
+      activities: [],
+      currentActivity: null,
+      timestamp: 0,
+    };
+    hubDataCache.set(hubId, {
+      ...existing,
+      ...data,
+      timestamp: Date.now(),
+    });
+    debug(`Updated cache for hub ${hubId}`);
+  }, []);
 
   /**
    * Update the current loading state
@@ -134,39 +168,70 @@ function useHarmonyState(): HarmonyContextState {
   const connect = useCallback(
     async (hub: HarmonyHub) => {
       try {
+        // Check if we're already connected to this hub
+        if (state.selectedHub?.hubId === hub.hubId && state.client?.isClientConnected()) {
+          debug(`Already connected to hub ${hub.name}`);
+          return;
+        }
+
         info(`Connecting to hub ${hub.name}`);
         setError(null);
         setLoadingState(HarmonyStage.CONNECTING, `Connecting to ${hub.name}...`, 0);
 
-        // Create and connect to the client
-        const newClient = new HarmonyClient(hub);
-        await newClient.connect();
+        // Get or create client
+        const client = HarmonyClient.getClient(hub);
+
+        // Only connect if not already connected
+        if (!client.isClientConnected()) {
+          await client.connect();
+        }
 
         info("Connected to hub, setting up state");
         setState((prev) => ({
           ...prev,
-          client: newClient,
+          client,
           selectedHub: hub,
         }));
 
-        // Load devices
-        setLoadingState(HarmonyStage.LOADING_DEVICES, "Loading devices...", 0.3);
-        info("Loading devices");
-        const hubDevices = await newClient.getDevices();
-        info(`Loaded ${hubDevices.length} devices`);
-        setState((prev) => ({ ...prev, devices: hubDevices }));
+        // Check cache for devices and activities
+        const cached = hubDataCache.get(hub.hubId);
+        const isCached = isCacheValid(hub.hubId);
 
-        // Load activities
-        setLoadingState(HarmonyStage.LOADING_ACTIVITIES, "Loading activities...", 0.6);
-        info("Loading activities");
-        const hubActivities = await newClient.getActivities();
-        info(`Loaded ${hubActivities.length} activities`);
-        setState((prev) => ({ ...prev, activities: hubActivities }));
+        if (isCached && cached) {
+          info("Using cached data");
+          setState((prev) => ({
+            ...prev,
+            devices: cached.devices,
+            activities: cached.activities,
+          }));
+        } else {
+          // Load devices
+          setLoadingState(HarmonyStage.LOADING_DEVICES, "Loading devices...", 0.3);
+          info("Loading devices");
+          const hubDevices = await client.getDevices();
+          info(`Loaded ${hubDevices.length} devices`);
+          setState((prev) => ({ ...prev, devices: hubDevices }));
 
-        // Get current activity
+          // Load activities
+          setLoadingState(HarmonyStage.LOADING_ACTIVITIES, "Loading activities...", 0.6);
+          info("Loading activities");
+          const hubActivities = await client.getActivities();
+          info(`Loaded ${hubActivities.length} activities`);
+          setState((prev) => ({ ...prev, activities: hubActivities }));
+
+          // Update cache
+          updateCache(hub.hubId, {
+            devices: hubDevices,
+            activities: hubActivities,
+            currentActivity: null,
+          });
+        }
+
+        // Always get current activity as it may have changed
         info("Getting current activity");
-        const current = await newClient.getCurrentActivity();
+        const current = await client.getCurrentActivity();
         setState((prev) => ({ ...prev, currentActivity: current }));
+        updateCache(hub.hubId, { currentActivity: current });
 
         setLoadingState(HarmonyStage.CONNECTED, "Connected successfully", 1);
         info("Hub setup completed successfully");
@@ -181,7 +246,7 @@ function useHarmonyState(): HarmonyContextState {
         error("Hub connection failed", { error: harmonyError.getDetailedMessage() });
       }
     },
-    [setLoadingState, setError],
+    [state, setLoadingState, setError, isCacheValid, updateCache],
   );
 
   // Discover hubs
@@ -209,8 +274,11 @@ function useHarmonyState(): HarmonyContextState {
       info(`Discovery completed, found ${discoveredHubs.length} hubs`);
       setState((prev) => ({ ...prev, hubs: discoveredHubs }));
 
+      // Set to initial state after discovery completes
+      setLoadingState(HarmonyStage.INITIAL, `Found ${discoveredHubs.length} hub(s)`, 1);
+
       // If auto-connect is enabled and we found exactly one hub, connect to it
-      if (preferences.autoConnect) {
+      if (preferences.autoConnect && discoveredHubs.length === 1) {
         const hub = discoveredHubs[0];
         if (hub) {
           info("Single hub found, auto-selecting");
@@ -218,11 +286,14 @@ function useHarmonyState(): HarmonyContextState {
         }
       }
     } catch (err) {
-      const harmonyError = new HarmonyError(
-        "Failed to discover hubs",
-        ErrorCategory.HUB_COMMUNICATION,
-        err instanceof Error ? err : undefined,
-      );
+      const harmonyError =
+        error instanceof HarmonyError
+          ? error
+          : new HarmonyError(
+              "Failed to discover hubs",
+              ErrorCategory.HUB_COMMUNICATION,
+              err instanceof Error ? err : undefined,
+            );
       setError(harmonyError);
       setLoadingState(HarmonyStage.ERROR, harmonyError.message, 1);
       error("Hub discovery failed", { error: harmonyError.getDetailedMessage() });
@@ -233,9 +304,11 @@ function useHarmonyState(): HarmonyContextState {
 
   // Disconnect from hub
   const disconnect = useCallback(async () => {
-    if (state.client) {
+    if (state.client && state.selectedHub) {
       try {
         await state.client.disconnect();
+        // Clear cache for this hub
+        hubDataCache.delete(state.selectedHub.hubId);
         setState((prev) => ({
           ...prev,
           client: null,
@@ -250,17 +323,9 @@ function useHarmonyState(): HarmonyContextState {
           err instanceof Error ? err : undefined,
         );
         error("Hub disconnection failed", { error: harmonyError.getDetailedMessage() });
-      } finally {
-        setState((prev) => ({
-          ...prev,
-          client: null,
-          devices: [],
-          activities: [],
-          currentActivity: null,
-        }));
       }
     }
-  }, [state.client, setState]);
+  }, [state.client, state.selectedHub]);
 
   // Execute a command
   const executeCommand = useCallback(
@@ -335,8 +400,9 @@ function useHarmonyState(): HarmonyContextState {
     }
   }, [state.client, setLoadingState, setError]);
 
-  // Clear cache and rediscover
+  // Update clearCache to clear memory cache
   const clearCache = useCallback(async () => {
+    hubDataCache.clear();
     await disconnect();
     await manager.clearCache();
     await discover();

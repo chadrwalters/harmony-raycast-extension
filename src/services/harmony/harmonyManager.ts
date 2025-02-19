@@ -73,8 +73,6 @@ export class HarmonyManager {
   private discoveryPromise: Promise<HarmonyHub[]> | null = null;
   /** Timeout for discovery completion */
   private completeTimeout: NodeJS.Timeout | null = null;
-  /** Map of discovered hubs by IP */
-  private readonly discoveredHubs = new Map<string, HarmonyHub>();
 
   /**
    * Creates a validated HarmonyHub instance from discovery data
@@ -106,6 +104,32 @@ export class HarmonyManager {
   }
 
   /**
+   * Verify a hub is accessible without creating a new connection
+   * @param hub - The hub to verify
+   * @returns True if hub is accessible
+   */
+  private async verifyHub(hub: HarmonyHub): Promise<boolean> {
+    try {
+      // Get existing client if available
+      const existingClient = HarmonyClient.getClient(hub);
+
+      // If client is already connected, just verify the connection
+      if (existingClient.isClientConnected()) {
+        debug(`Hub ${hub.name} already connected, skipping verification`);
+        return true;
+      }
+
+      // Try a lightweight connection test
+      debug(`Verifying hub ${hub.name} is accessible`);
+      await existingClient.connect();
+      return true;
+    } catch (err) {
+      warn(`Failed to verify hub ${hub.name}:`, err);
+      return false;
+    }
+  }
+
+  /**
    * Starts discovery of Harmony Hubs on the network.
    * Checks cache first, then performs network discovery if needed.
    * @param onProgress - Optional callback for progress updates
@@ -118,20 +142,23 @@ export class HarmonyManager {
       const cached = await this.getCachedHubs();
       if (cached) {
         info(`Found ${cached.length} cached hubs`);
-        onProgress?.(1, `Found ${cached.length} cached hub(s)`);
+        onProgress?.(0.25, `Found ${cached.length} cached hub(s)`);
 
         // Verify each cached hub is still accessible
         debug("Verifying cached hubs are accessible");
         const verifiedHubs: HarmonyHub[] = [];
         for (const hub of cached) {
           try {
-            const client = new HarmonyClient(hub);
-            await client.connect();
-            await client.disconnect();
-            verifiedHubs.push(hub);
-            info(`Verified hub ${hub.name} is accessible`);
+            onProgress?.(0.5, `Verifying hub: ${hub.name}...`);
+            if (await this.verifyHub(hub)) {
+              verifiedHubs.push(hub);
+              info(`Verified hub ${hub.name} is accessible`);
+              onProgress?.(0.75, `Verified hub: ${hub.name}`);
+            } else {
+              warn(`Cached hub ${hub.name} is no longer accessible`);
+            }
           } catch (err) {
-            warn(`Cached hub ${hub.name} is no longer accessible, will be removed from cache`, err);
+            warn(`Failed to verify hub ${hub.name}:`, err);
           }
         }
 
@@ -151,6 +178,7 @@ export class HarmonyManager {
               });
             }
           }
+          onProgress?.(1, `Found ${verifiedHubs.length} hub(s)`);
           return verifiedHubs;
         }
 
@@ -172,7 +200,7 @@ export class HarmonyManager {
       await this.cleanup();
 
       this.isDiscovering = true;
-      onProgress?.(0, "Starting discovery process");
+      onProgress?.(0.1, "Starting discovery process");
       info("Starting hub discovery process");
       this.explorer = new Explorer();
 
@@ -186,6 +214,7 @@ export class HarmonyManager {
         }
 
         const hubs: HarmonyHub[] = [];
+        let discoveryProgress = 0.1;
 
         // Function to complete discovery
         const completeDiscovery = async (): Promise<HarmonyHub[]> => {
@@ -193,8 +222,10 @@ export class HarmonyManager {
           if (hubs.length > 0) {
             info(`Discovery completed successfully, found ${hubs.length} hubs`);
             await this.cacheHubs(hubs);
+            onProgress?.(1, `Found ${hubs.length} hub(s)`);
           } else {
             info("Discovery completed but no hubs were found");
+            onProgress?.(1, "No hubs found");
           }
           resolve(hubs);
           return hubs;
@@ -215,7 +246,10 @@ export class HarmonyManager {
             if (!hubs.some((h) => h.hubId === hub.hubId)) {
               hubs.push(hub);
               info(`Found hub: ${hub.name} (${hub.ip})`);
-              onProgress?.(0.5, `Found hub: ${hub.name}`);
+
+              // Update progress - increment by 0.3 for each hub found, max at 0.9
+              discoveryProgress = Math.min(0.9, discoveryProgress + 0.3);
+              onProgress?.(discoveryProgress, `Found hub: ${hub.name}`);
 
               // If we found a hub, wait a bit longer for others
               if (this.completeTimeout) {
@@ -254,7 +288,11 @@ export class HarmonyManager {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       error("Failed to start discovery:", errorMessage);
-      throw new HarmonyError("Failed to start hub discovery", ErrorCategory.HUB_COMMUNICATION, err instanceof Error ? err : undefined);
+      throw new HarmonyError(
+        "Failed to start hub discovery",
+        ErrorCategory.HUB_COMMUNICATION,
+        err instanceof Error ? err : undefined,
+      );
     } finally {
       this.isDiscovering = false;
     }
@@ -361,7 +399,7 @@ export class HarmonyManager {
       const hubs = await this.getCachedHubs();
       if (hubs) {
         for (const hub of hubs) {
-          const client = new HarmonyClient(hub);
+          const client = HarmonyClient.getClient(hub);
           await client.clearCache();
         }
       }
@@ -400,5 +438,15 @@ export class HarmonyManager {
       error("Failed to clear caches:", { error: errorMessage });
       throw new HarmonyError("Failed to clear caches", ErrorCategory.STORAGE, err instanceof Error ? err : undefined);
     }
+  }
+
+  /**
+   * Completes the discovery process, cleaning up resources
+   * @private
+   */
+  private completeDiscovery(): void {
+    this.cleanup();
+    this.isDiscovering = false;
+    this.discoveryPromise = null;
   }
 }
